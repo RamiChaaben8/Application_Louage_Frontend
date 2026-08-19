@@ -12,6 +12,9 @@ class AuthProvider with ChangeNotifier {
   AuthResponse? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   bool get isAuthenticated => _currentUser != null;
+  bool get isDriver => _currentUser?.userType.toLowerCase() == 'driver';
+  bool get isCustomer => _currentUser?.userType.toLowerCase() == 'customer';
+  bool get isAdmin => _currentUser?.userType.toLowerCase() == 'admin';
   String? get error => _error;
 
   Future<void> tryRestoreSession() async {
@@ -51,6 +54,35 @@ class AuthProvider with ChangeNotifier {
       email: email,
       password: password,
       phoneNum: phoneNum,
+    );
+    _currentUser = user;
+    _error = err;
+
+    _isLoading = false;
+    notifyListeners();
+
+    return _currentUser != null;
+  }
+
+  Future<bool> registerDriver({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String password,
+    required int phoneNum,
+    required String licenseNumber,
+  }) async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    final (user, err) = await _authService.registerDriver(
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      password: password,
+      phoneNum: phoneNum,
+      licenseNumber: licenseNumber,
     );
     _currentUser = user;
     _error = err;

@@ -23,9 +23,7 @@ class Vehicle {
       id: json['id'],
       plate: json['plate'] ?? '',
       capacity: json['capacity'] ?? 0,
-      status: json['status'] != null
-          ? VehicleStatusExtension.fromString(json['status'].toString())
-          : VehicleStatus.available,
+      status: VehicleStatus.fromJson(json['status']),
       driverId: json['driverId'] ?? 0,
       driver: json['driver'] != null ? Driver.fromJson(json['driver']) : null,
     );

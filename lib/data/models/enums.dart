@@ -2,31 +2,44 @@ enum TicketStatus {
   active,
   resale,
   used,
-  cancelled
+  cancelled;
+
+  static TicketStatus fromJson(dynamic value) {
+    if (value is int) {
+      if (value >= 0 && value < TicketStatus.values.length) {
+        return TicketStatus.values[value];
+      }
+      return TicketStatus.active;
+    }
+    if (value is String) {
+      return TicketStatus.values.firstWhere(
+        (e) => e.name.toLowerCase() == value.toLowerCase(),
+        orElse: () => TicketStatus.active,
+      );
+    }
+    return TicketStatus.active;
+  }
 }
 
 enum VehicleStatus {
   available,
   inUse,
   maintenance,
-  outOfService
-}
+  outOfService;
 
-// Extension to help parse Enums from JSON
-extension TicketStatusExtension on TicketStatus {
-  static TicketStatus fromString(String status) {
-    return TicketStatus.values.firstWhere(
-      (e) => e.toString().split('.').last.toLowerCase() == status.toLowerCase(),
-      orElse: () => TicketStatus.active,
-    );
-  }
-}
-
-extension VehicleStatusExtension on VehicleStatus {
-  static VehicleStatus fromString(String status) {
-    return VehicleStatus.values.firstWhere(
-      (e) => e.toString().split('.').last.toLowerCase() == status.toLowerCase(),
-      orElse: () => VehicleStatus.available,
-    );
+  static VehicleStatus fromJson(dynamic value) {
+    if (value is int) {
+      if (value >= 0 && value < VehicleStatus.values.length) {
+        return VehicleStatus.values[value];
+      }
+      return VehicleStatus.available;
+    }
+    if (value is String) {
+      return VehicleStatus.values.firstWhere(
+        (e) => e.name.toLowerCase() == value.toLowerCase(),
+        orElse: () => VehicleStatus.available,
+      );
+    }
+    return VehicleStatus.available;
   }
 }

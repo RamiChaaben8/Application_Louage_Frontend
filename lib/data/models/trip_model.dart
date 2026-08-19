@@ -13,24 +13,32 @@ class Trip {
   Trip({
     required this.id,
     required this.departureTime,
-    required this.startStationId,
+    this.startStationId = 0,
     this.startStation,
-    required this.endStationId,
+    this.endStationId = 0,
     this.endStation,
     this.tickets = const [],
   });
 
   factory Trip.fromJson(Map<String, dynamic> json) {
+    final start = json['startStation'] != null ? Station.fromJson(json['startStation']) : null;
+    final end = json['endStation'] != null ? Station.fromJson(json['endStation']) : null;
+
+    DateTime depTime = DateTime.now();
+    if (json['departureTime'] != null) {
+      try {
+        depTime = DateTime.parse(json['departureTime']);
+      } catch (_) {}
+    }
+
     return Trip(
-      id: json['id'],
-      departureTime: json['departureTime'] != null 
-          ? DateTime.parse(json['departureTime']) 
-          : DateTime.now(),
-      startStationId: json['startStationId'] ?? 0,
-      startStation: json['startStation'] != null ? Station.fromJson(json['startStation']) : null,
-      endStationId: json['endStationId'] ?? 0,
-      endStation: json['endStation'] != null ? Station.fromJson(json['endStation']) : null,
-      tickets: json['tickets'] != null 
+      id: json['id'] ?? 0,
+      departureTime: depTime,
+      startStationId: json['startStationId'] ?? start?.id ?? 0,
+      startStation: start,
+      endStationId: json['endStationId'] ?? end?.id ?? 0,
+      endStation: end,
+      tickets: json['tickets'] != null
           ? (json['tickets'] as List).map((i) => Ticket.fromJson(i)).toList()
           : [],
     );

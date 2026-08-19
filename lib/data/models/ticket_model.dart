@@ -1,6 +1,5 @@
 import 'enums.dart';
 import 'trip_model.dart';
-import 'customer_model.dart';
 
 class Ticket {
   final int id;
@@ -8,11 +7,10 @@ class Ticket {
   final Trip? trip;
   final double price;
   final double originalPrice;
-  final String date; // Using String for DateOnly to keep it simple, or DateTime
-  final String time; // Using String for TimeOnly
+  final String date;
+  final String time;
   final TicketStatus status;
-  final int ownerId;
-  final Customer? owner;
+  final int? ownerId;
 
   Ticket({
     required this.id,
@@ -23,25 +21,20 @@ class Ticket {
     required this.date,
     required this.time,
     required this.status,
-    required this.ownerId,
-    this.owner,
+    this.ownerId,
   });
 
   factory Ticket.fromJson(Map<String, dynamic> json) {
     return Ticket(
-      id: json['id'],
+      id: json['id'] ?? 0,
       tripId: json['tripId'] ?? 0,
-      // Be cautious with recursive parsing if Trip includes Tickets
       trip: json['trip'] != null ? Trip.fromJson(json['trip']) : null,
       price: (json['price'] ?? 0).toDouble(),
-      originalPrice: (json['originalPrice'] ?? 0).toDouble(),
-      date: json['date'] ?? '',
-      time: json['time'] ?? '',
-      status: json['status'] != null
-          ? TicketStatusExtension.fromString(json['status'].toString())
-          : TicketStatus.active,
-      ownerId: json['ownerId'] ?? 0,
-      owner: json['owner'] != null ? Customer.fromJson(json['owner']) : null,
+      originalPrice: (json['originalPrice'] ?? json['price'] ?? 0).toDouble(),
+      date: json['date']?.toString() ?? '',
+      time: json['time']?.toString() ?? '',
+      status: TicketStatus.fromJson(json['status']),
+      ownerId: json['ownerId'],
     );
   }
 
@@ -53,9 +46,8 @@ class Ticket {
       'originalPrice': originalPrice,
       'date': date,
       'time': time,
-      'status': status.toString().split('.').last,
-      'ownerId': ownerId,
-      // Avoid circular json encoding
+      'status': status.name,
+      if (ownerId != null) 'ownerId': ownerId,
     };
   }
 }

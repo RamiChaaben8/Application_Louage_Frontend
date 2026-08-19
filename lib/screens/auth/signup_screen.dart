@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../home/home_screen.dart';
+import '../home/main_navigation_screen.dart';
+import '../driver/driver_main_screen.dart';
 import 'login_screen.dart';
 
 class SignUpScreen extends StatefulWidget {
@@ -18,6 +19,10 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _emailController = TextEditingController();
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _licenseController = TextEditingController();
+
+  // Role selection: 'customer' or 'driver'
+  String _selectedRole = 'customer';
 
   @override
   void dispose() {
@@ -26,6 +31,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _emailController.dispose();
     _phoneController.dispose();
     _passwordController.dispose();
+    _licenseController.dispose();
     super.dispose();
   }
 
@@ -33,22 +39,41 @@ class _SignUpScreenState extends State<SignUpScreen> {
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-      bool success = await authProvider.registerCustomer(
-        firstName: _firstNameController.text.trim(),
-        lastName: _lastNameController.text.trim(),
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
-        phoneNum: int.tryParse(_phoneController.text.trim()) ?? 0,
-      );
+      bool success = false;
+
+      if (_selectedRole == 'driver') {
+        success = await authProvider.registerDriver(
+          firstName: _firstNameController.text.trim(),
+          lastName: _lastNameController.text.trim(),
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+          phoneNum: int.tryParse(_phoneController.text.trim()) ?? 0,
+          licenseNumber: _licenseController.text.trim(),
+        );
+      } else {
+        success = await authProvider.registerCustomer(
+          firstName: _firstNameController.text.trim(),
+          lastName: _lastNameController.text.trim(),
+          email: _emailController.text.trim(),
+          password: _passwordController.text.trim(),
+          phoneNum: int.tryParse(_phoneController.text.trim()) ?? 0,
+        );
+      }
 
       if (!mounted) return;
 
       if (success) {
-        // Registration also returns a token and user - go straight to Home
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const HomeScreen()),
-        );
+        if (authProvider.isDriver) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const DriverMainScreen()),
+          );
+        } else {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
+          );
+        }
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -77,8 +102,112 @@ class _SignUpScreenState extends State<SignUpScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.person_add, size: 80, color: Colors.blue),
-                const SizedBox(height: 32),
+                // Role Selection Segmented Control
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade200,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedRole = 'customer';
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: _selectedRole == 'customer' ? Colors.blue : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.person,
+                                  size: 18,
+                                  color: _selectedRole == 'customer' ? Colors.white : Colors.black87,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Passenger',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _selectedRole == 'customer' ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _selectedRole = 'driver';
+                            });
+                          },
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            decoration: BoxDecoration(
+                              color: _selectedRole == 'driver' ? Colors.blue : Colors.transparent,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(
+                                  Icons.directions_car,
+                                  size: 18,
+                                  color: _selectedRole == 'driver' ? Colors.white : Colors.black87,
+                                ),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Driver',
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: _selectedRole == 'driver' ? Colors.white : Colors.black87,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+
+                // Driver Notice Card
+                if (_selectedRole == 'driver')
+                  Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.amber.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.info_outline, color: Colors.amber.shade800),
+                        const SizedBox(width: 10),
+                        const Expanded(
+                          child: Text(
+                            'Driver accounts require Admin verification and vehicle assignment before starting work.',
+                            style: TextStyle(fontSize: 12, color: Colors.black87),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
                 TextFormField(
                   controller: _firstNameController,
                   decoration: const InputDecoration(
@@ -121,6 +250,21 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   validator: (v) => v!.isEmpty ? 'Enter your phone number' : null,
                 ),
                 const SizedBox(height: 16),
+
+                // Driver License Field (Only visible when Driver is selected)
+                if (_selectedRole == 'driver') ...[
+                  TextFormField(
+                    controller: _licenseController,
+                    decoration: const InputDecoration(
+                      labelText: 'Driver License Number',
+                      prefixIcon: Icon(Icons.badge),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (v) => v!.isEmpty ? 'Enter your license number' : null,
+                  ),
+                  const SizedBox(height: 16),
+                ],
+
                 TextFormField(
                   controller: _passwordController,
                   obscureText: true,
@@ -136,9 +280,13 @@ class _SignUpScreenState extends State<SignUpScreen> {
                     ? const Center(child: CircularProgressIndicator())
                     : ElevatedButton(
                         style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16)),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                        ),
                         onPressed: _register,
-                        child: const Text('Sign Up', style: TextStyle(fontSize: 18)),
+                        child: Text(
+                          _selectedRole == 'driver' ? 'Register as Driver' : 'Sign Up as Passenger',
+                          style: const TextStyle(fontSize: 18),
+                        ),
                       ),
                 const SizedBox(height: 16),
                 TextButton(

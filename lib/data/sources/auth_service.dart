@@ -24,12 +24,11 @@ class AuthService {
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final authResponse = AuthResponse.fromJson(data);
+        final authResponse = AuthResponse.fromJson(data, email: email);
         await _saveUser(authResponse);
         return (authResponse, null);
       }
 
-      // Extract readable error from body
       final error = _extractError(response.body, response.statusCode);
       return (null, error);
     } catch (e) {
@@ -46,7 +45,7 @@ class AuthService {
     required int phoneNum,
   }) async {
     try {
-      final url = ApiConstants.registerEndpoint;
+      final url = ApiConstants.registerCustomerEndpoint;
       final body = jsonEncode({
         'firstName': firstName,
         'lastName': lastName,
@@ -55,8 +54,8 @@ class AuthService {
         'phoneNum': phoneNum,
       });
 
-      print('[REGISTER] POST $url');
-      print('[REGISTER] Body: $body');
+      print('[REGISTER CUSTOMER] POST $url');
+      print('[REGISTER CUSTOMER] Body: $body');
 
       final response = await http.post(
         Uri.parse(url),
@@ -64,12 +63,12 @@ class AuthService {
         body: body,
       ).timeout(const Duration(seconds: 10));
 
-      print('[REGISTER] Status: ${response.statusCode}');
-      print('[REGISTER] Body: ${response.body}');
+      print('[REGISTER CUSTOMER] Status: ${response.statusCode}');
+      print('[REGISTER CUSTOMER] Body: ${response.body}');
 
       if (response.statusCode == 200 || response.statusCode == 201) {
         final data = jsonDecode(response.body) as Map<String, dynamic>;
-        final authResponse = AuthResponse.fromJson(data);
+        final authResponse = AuthResponse.fromJson(data, email: email);
         await _saveUser(authResponse);
         return (authResponse, null);
       }
@@ -77,14 +76,59 @@ class AuthService {
       final error = _extractError(response.body, response.statusCode);
       return (null, error);
     } catch (e) {
-      print('[REGISTER] Exception: $e');
+      print('[REGISTER CUSTOMER] Exception: $e');
+      return (null, 'Cannot connect to server: $e');
+    }
+  }
+
+  Future<(AuthResponse?, String?)> registerDriver({
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String password,
+    required int phoneNum,
+    required String licenseNumber,
+  }) async {
+    try {
+      final url = ApiConstants.registerDriverEndpoint;
+      final body = jsonEncode({
+        'firstName': firstName,
+        'lastName': lastName,
+        'email': email,
+        'password': password,
+        'phoneNum': phoneNum,
+        'licenseNumber': licenseNumber,
+      });
+
+      print('[REGISTER DRIVER] POST $url');
+      print('[REGISTER DRIVER] Body: $body');
+
+      final response = await http.post(
+        Uri.parse(url),
+        headers: {'Content-Type': 'application/json'},
+        body: body,
+      ).timeout(const Duration(seconds: 10));
+
+      print('[REGISTER DRIVER] Status: ${response.statusCode}');
+      print('[REGISTER DRIVER] Body: ${response.body}');
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final authResponse = AuthResponse.fromJson(data, email: email);
+        await _saveUser(authResponse);
+        return (authResponse, null);
+      }
+
+      final error = _extractError(response.body, response.statusCode);
+      return (null, error);
+    } catch (e) {
+      print('[REGISTER DRIVER] Exception: $e');
       return (null, 'Cannot connect to server: $e');
     }
   }
 
   String _extractError(String body, int statusCode) {
     try {
-      // Try to parse JSON error
       final decoded = jsonDecode(body);
       if (decoded is String) return decoded;
       if (decoded is Map && decoded.containsKey('title')) return decoded['title'];
@@ -101,6 +145,7 @@ class AuthService {
     await _storage.write(key: 'user_type', value: r.userType);
     await _storage.write(key: 'first_name', value: r.firstName);
     await _storage.write(key: 'last_name', value: r.lastName);
+    await _storage.write(key: 'email', value: r.email);
   }
 
   Future<void> logout() async {
@@ -120,6 +165,7 @@ class AuthService {
       firstName: await _storage.read(key: 'first_name') ?? '',
       lastName: await _storage.read(key: 'last_name') ?? '',
       userType: await _storage.read(key: 'user_type') ?? 'Customer',
+      email: await _storage.read(key: 'email') ?? '',
     );
   }
 }
