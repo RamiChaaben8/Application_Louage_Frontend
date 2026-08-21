@@ -5,6 +5,7 @@ class AuthResponse {
   final String lastName;
   final String userType;
   final String email;
+  final String? status;
 
   AuthResponse({
     required this.token,
@@ -13,6 +14,7 @@ class AuthResponse {
     required this.lastName,
     required this.userType,
     this.email = '',
+    this.status,
   });
 
   factory AuthResponse.fromJson(Map<String, dynamic> json, {String email = ''}) {
@@ -23,10 +25,11 @@ class AuthResponse {
       lastName: json['lastName'] ?? '',
       userType: json['userType'] ?? 'Customer',
       email: json['email'] ?? email,
+      status: json['status'],
     );
   }
 
-  AuthResponse copyWith({String? email}) {
+  AuthResponse copyWith({String? email, String? status}) {
     return AuthResponse(
       token: token,
       userId: userId,
@@ -34,6 +37,7 @@ class AuthResponse {
       lastName: lastName,
       userType: userType,
       email: email ?? this.email,
+      status: status ?? this.status,
     );
   }
 }

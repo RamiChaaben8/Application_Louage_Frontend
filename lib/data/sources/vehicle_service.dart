@@ -3,6 +3,7 @@ import 'package:http/http.dart' as http;
 import '../../core/constants/api_constants.dart';
 import '../models/vehicle_model.dart';
 import '../models/enums.dart';
+import 'auth_service.dart';
 
 class VehicleService {
   // Fetch all vehicles
@@ -39,13 +40,19 @@ class VehicleService {
     }
   }
 
+  final AuthService _authService = AuthService();
+
   // Update vehicle status
   Future<bool> updateVehicleStatus(int vehicleId, VehicleStatus status) async {
     try {
+      final token = await _authService.getToken();
       final url = '${ApiConstants.vehiclesEndpoint}/$vehicleId/status';
       final response = await http.put(
         Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
         body: jsonEncode(status.index), // or status name
       ).timeout(const Duration(seconds: 10));
 

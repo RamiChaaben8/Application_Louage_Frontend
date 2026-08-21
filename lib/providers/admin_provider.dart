@@ -1,8 +1,9 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../data/models/admin_user_model.dart';
 import '../data/models/station_model.dart';
 import '../data/models/vehicle_model.dart';
 import '../data/models/trip_model.dart';
+import '../data/models/enums.dart';
 import '../data/sources/admin_service.dart';
 
 class AdminProvider extends ChangeNotifier {
@@ -238,6 +239,14 @@ class AdminProvider extends ChangeNotifier {
     }
     await fetchTrips();
     return true;
+  }
+
+  Future<bool> updateTripStatus(int tripId, TripStatus status, String token) async {
+    final success = await _adminService.updateTripStatus(tripId, status.index, token);
+    if (success) {
+      await fetchTrips();
+    }
+    return success;
   }
 
   void _setLoading(bool value) {

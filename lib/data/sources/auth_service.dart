@@ -88,6 +88,8 @@ class AuthService {
     required String password,
     required int phoneNum,
     required String licenseNumber,
+    required String plate,
+    required int capacity,
   }) async {
     try {
       final url = ApiConstants.registerDriverEndpoint;
@@ -98,6 +100,8 @@ class AuthService {
         'password': password,
         'phoneNum': phoneNum,
         'licenseNumber': licenseNumber,
+        'plate': plate,
+        'capacity': capacity,
       });
 
       print('[REGISTER DRIVER] POST $url');
@@ -146,6 +150,9 @@ class AuthService {
     await _storage.write(key: 'first_name', value: r.firstName);
     await _storage.write(key: 'last_name', value: r.lastName);
     await _storage.write(key: 'email', value: r.email);
+    if (r.status != null) {
+      await _storage.write(key: 'status', value: r.status!);
+    }
   }
 
   Future<void> logout() async {
@@ -166,6 +173,27 @@ class AuthService {
       lastName: await _storage.read(key: 'last_name') ?? '',
       userType: await _storage.read(key: 'user_type') ?? 'Customer',
       email: await _storage.read(key: 'email') ?? '',
+      status: await _storage.read(key: 'status'),
     );
+  }
+
+  Future<String?> getDriverStatus(int driverId) async {
+    try {
+      final url = ApiConstants.driverStatusEndpoint(driverId);
+      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final status = data['status']?.toString();
+        if (status != null) {
+          await _storage.write(key: 'status', value: status);
+        }
+        return status;
+      }
+      return null;
+    } catch (e) {
+      print('[AuthService] getDriverStatus error: $e');
+      return null;
+    }
   }
 }

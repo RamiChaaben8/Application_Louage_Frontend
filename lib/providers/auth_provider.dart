@@ -71,6 +71,8 @@ class AuthProvider with ChangeNotifier {
     required String password,
     required int phoneNum,
     required String licenseNumber,
+    required String plate,
+    required int capacity,
   }) async {
     _isLoading = true;
     _error = null;
@@ -83,6 +85,8 @@ class AuthProvider with ChangeNotifier {
       password: password,
       phoneNum: phoneNum,
       licenseNumber: licenseNumber,
+      plate: plate,
+      capacity: capacity,
     );
     _currentUser = user;
     _error = err;

@@ -1,5 +1,6 @@
 import 'station_model.dart';
 import 'ticket_model.dart';
+import 'enums.dart';
 
 class Trip {
   final int id;
@@ -9,6 +10,10 @@ class Trip {
   final int endStationId;
   final Station? endStation;
   final List<Ticket> tickets;
+  final int? driverId;
+  final String? driverName;
+  final List<String> passengerNames;
+  final TripStatus status;
 
   Trip({
     required this.id,
@@ -18,6 +23,10 @@ class Trip {
     this.endStationId = 0,
     this.endStation,
     this.tickets = const [],
+    this.driverId,
+    this.driverName,
+    this.passengerNames = const [],
+    this.status = TripStatus.pending,
   });
 
   factory Trip.fromJson(Map<String, dynamic> json) {
@@ -41,6 +50,12 @@ class Trip {
       tickets: json['tickets'] != null
           ? (json['tickets'] as List).map((i) => Ticket.fromJson(i)).toList()
           : [],
+      driverId: json['driverId'],
+      driverName: json['driverName'],
+      passengerNames: json['passengerNames'] != null
+          ? List<String>.from(json['passengerNames'])
+          : [],
+      status: TripStatus.fromJson(json['status']),
     );
   }
 
@@ -53,6 +68,10 @@ class Trip {
       'startStation': startStation?.toJson(),
       'endStation': endStation?.toJson(),
       'tickets': tickets.map((t) => t.toJson()).toList(),
+      'driverId': driverId,
+      'driverName': driverName,
+      'passengerNames': passengerNames,
+      'status': status.index,
     };
   }
 }

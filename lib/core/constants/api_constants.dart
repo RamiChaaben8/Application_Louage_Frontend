@@ -18,4 +18,5 @@ class ApiConstants {
   static String adminApproveDriverEndpoint(int id) => '$adminBaseEndpoint/drivers/$id/approve';
   static String adminDeclineDriverEndpoint(int id) => '$adminBaseEndpoint/drivers/$id/decline';
   static String adminDeleteUserEndpoint(int id) => '$adminBaseEndpoint/users/$id';
+  static String driverStatusEndpoint(int id) => '$baseUrl/Auth/driver-status/$id';
 }

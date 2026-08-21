@@ -20,6 +20,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _phoneController = TextEditingController();
   final _passwordController = TextEditingController();
   final _licenseController = TextEditingController();
+  final _plateController = TextEditingController();
+  final _capacityController = TextEditingController(text: '8');
 
   // Role selection: 'customer' or 'driver'
   String _selectedRole = 'customer';
@@ -32,6 +34,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
     _phoneController.dispose();
     _passwordController.dispose();
     _licenseController.dispose();
+    _plateController.dispose();
+    _capacityController.dispose();
     super.dispose();
   }
 
@@ -49,6 +53,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
           password: _passwordController.text.trim(),
           phoneNum: int.tryParse(_phoneController.text.trim()) ?? 0,
           licenseNumber: _licenseController.text.trim(),
+          plate: _plateController.text.trim(),
+          capacity: int.tryParse(_capacityController.text.trim()) ?? 8,
         );
       } else {
         success = await authProvider.registerCustomer(
@@ -251,7 +257,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
                 ),
                 const SizedBox(height: 16),
 
-                // Driver License Field (Only visible when Driver is selected)
+                // Driver-only fields
                 if (_selectedRole == 'driver') ...[
                   TextFormField(
                     controller: _licenseController,
@@ -261,6 +267,49 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       border: OutlineInputBorder(),
                     ),
                     validator: (v) => v!.isEmpty ? 'Enter your license number' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  // Vehicle section header
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.directions_car, size: 18, color: Colors.blueGrey),
+                        SizedBox(width: 8),
+                        Text(
+                          'Vehicle Information',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.blueGrey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  TextFormField(
+                    controller: _plateController,
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: 'Vehicle Plate (e.g. 123 TUN 4567)',
+                      prefixIcon: Icon(Icons.pin),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (v) => v!.isEmpty ? 'Enter vehicle plate number' : null,
+                  ),
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _capacityController,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Seating Capacity',
+                      prefixIcon: Icon(Icons.event_seat),
+                      border: OutlineInputBorder(),
+                    ),
+                    validator: (v) =>
+                        int.tryParse(v ?? '') == null || int.parse(v!) < 1
+                            ? 'Enter a valid seat count'
+                            : null,
                   ),
                   const SizedBox(height: 16),
                 ],

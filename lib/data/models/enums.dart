@@ -43,3 +43,25 @@ enum VehicleStatus {
     return VehicleStatus.available;
   }
 }
+
+enum TripStatus {
+  pending,
+  started,
+  finished;
+
+  static TripStatus fromJson(dynamic value) {
+    if (value is int) {
+      if (value >= 0 && value < TripStatus.values.length) {
+        return TripStatus.values[value];
+      }
+      return TripStatus.pending;
+    }
+    if (value is String) {
+      return TripStatus.values.firstWhere(
+        (e) => e.name.toLowerCase() == value.toLowerCase(),
+        orElse: () => TripStatus.pending,
+      );
+    }
+    return TripStatus.pending;
+  }
+}

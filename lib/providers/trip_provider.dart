@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../data/models/station_model.dart';
 import '../data/models/trip_model.dart';
+import '../data/models/enums.dart';
 import '../data/sources/trip_service.dart';
 
 class TripProvider with ChangeNotifier {
@@ -72,5 +73,32 @@ class TripProvider with ChangeNotifier {
 
     _isLoadingTrips = false;
     notifyListeners();
+  }
+
+  Future<bool> createTrip({
+    required int startStationId,
+    required int endStationId,
+    required DateTime departureTime,
+    int? driverId,
+  }) async {
+    final success = await _tripService.createTrip(
+      startStationId: startStationId,
+      endStationId: endStationId,
+      departureTime: departureTime,
+      driverId: driverId,
+    );
+    if (success) {
+      await searchTrips(); // Refresh list after creation
+    }
+    return success;
+  }
+
+  Future<bool> updateTripStatus(int tripId, TripStatus status) async {
+    final success = await _tripService.updateTripStatus(tripId, status.index);
+    if (success) {
+      // Find the trip and update its status locally or just re-fetch
+      await searchTrips();
+    }
+    return success;
   }
 }

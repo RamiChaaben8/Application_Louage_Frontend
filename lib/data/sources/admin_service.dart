@@ -1,4 +1,4 @@
-﻿import 'dart:convert';
+import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../core/constants/api_constants.dart';
 import '../models/admin_user_model.dart';
@@ -248,6 +248,22 @@ class AdminService {
       return [];
     } catch (e) {
       return [];
+    }
+  }
+
+  Future<bool> updateTripStatus(int id, int statusIndex, String token) async {
+    try {
+      final response = await http.put(
+        Uri.parse('${ApiConstants.tripsEndpoint}/$id/status'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(statusIndex),
+      );
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      return false;
     }
   }
 

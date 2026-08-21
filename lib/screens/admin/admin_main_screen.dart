@@ -7,6 +7,7 @@ import '../../data/models/admin_user_model.dart';
 import '../../data/models/station_model.dart';
 import '../../data/models/vehicle_model.dart';
 import '../../data/models/trip_model.dart';
+import '../../data/models/enums.dart';
 
 class AdminMainScreen extends StatefulWidget {
   const AdminMainScreen({super.key});
@@ -435,77 +436,164 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         return Card(
           elevation: 2,
           margin: const EdgeInsets.only(bottom: 12),
-          child: Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    const CircleAvatar(
-                      backgroundColor: Colors.orangeAccent,
-                      child: Icon(Icons.person, color: Colors.white),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${driver.firstName} ${driver.lastName}',
-                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                          ),
-                          Text(driver.email, style: TextStyle(color: Colors.grey.shade600)),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                if (driver.licenseNumber != null && driver.licenseNumber!.isNotEmpty)
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(12),
+            onTap: () => _showDriverDetailDialog(driver),
+            child: Padding(
+              padding: const EdgeInsets.all(16.0),
+              child: Row(
+                children: [
+                  const CircleAvatar(
+                    backgroundColor: Colors.orangeAccent,
+                    child: Icon(Icons.person, color: Colors.white),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Icon(Icons.badge, size: 16, color: Colors.blueGrey),
-                        const SizedBox(width: 6),
-                        Text('License: ${driver.licenseNumber}',
-                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                        Text(
+                          '${driver.firstName} ${driver.lastName}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                        ),
+                        Text(driver.email,
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
+                        if (driver.licenseNumber != null && driver.licenseNumber!.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              'License: ${driver.licenseNumber}',
+                              style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+                            ),
+                          ),
                       ],
                     ),
                   ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _declineDriver(driver.id),
-                      icon: const Icon(Icons.close, color: Colors.red),
-                      label: const Text('Decline', style: TextStyle(color: Colors.red)),
-                      style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
-                    ),
-                    const SizedBox(width: 12),
-                    ElevatedButton.icon(
-                      onPressed: () => _approveDriver(driver.id),
-                      icon: const Icon(Icons.check),
-                      label: const Text('Approve'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.green,
-                        foregroundColor: Colors.white,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                  const Icon(Icons.chevron_right, color: Colors.grey),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  void _showDriverDetailDialog(AdminUser driver) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        contentPadding: EdgeInsets.zero,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(
+                  color: Colors.orange,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+                ),
+                child: Column(
+                  children: [
+                    const CircleAvatar(
+                      radius: 30,
+                      backgroundColor: Colors.white,
+                      child: Icon(Icons.person, size: 36, color: Colors.orange),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      '${driver.firstName} ${driver.lastName}',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Text(
+                      driver.email,
+                      style: const TextStyle(color: Colors.white70, fontSize: 13),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Driver info section
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Driver Information',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blueGrey),
+                    ),
+                    const SizedBox(height: 8),
+                    _infoRow(Icons.badge, 'License', driver.licenseNumber ?? 'N/A'),
+
+                    const SizedBox(height: 16),
+
+                    // Vehicle info section
+                    const Text(
+                      'Vehicle Information',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blueGrey),
+                    ),
+                    const SizedBox(height: 8),
+                    if (driver.vehicle != null) ...[
+                      _infoRow(Icons.pin, 'Plate', driver.vehicle!.plate),
+                      _infoRow(Icons.event_seat, 'Capacity', '${driver.vehicle!.capacity} seats'),
+                    ] else
+                      const Text('No vehicle information provided.',
+                          style: TextStyle(color: Colors.grey, fontSize: 13)),
+
+                    const SizedBox(height: 20),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _declineDriver(driver.id);
+            },
+            icon: const Icon(Icons.close, color: Colors.red),
+            label: const Text('Decline', style: TextStyle(color: Colors.red)),
+            style: OutlinedButton.styleFrom(side: const BorderSide(color: Colors.red)),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _approveDriver(driver.id);
+            },
+            icon: const Icon(Icons.check),
+            label: const Text('Approve'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: Colors.blueGrey),
+          const SizedBox(width: 8),
+          Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+          Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+        ],
+      ),
     );
   }
 
@@ -773,20 +861,81 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         return Card(
           elevation: 1,
           margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
+          child: ExpansionTile(
             leading: const CircleAvatar(
               backgroundColor: Colors.indigo,
               child: Icon(Icons.route, color: Colors.white),
             ),
             title: Text('$start -> $end', style: const TextStyle(fontWeight: FontWeight.bold)),
             subtitle: Text('Departure: $timeStr'),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              onPressed: () => _confirmDeleteTrip(trip),
+            trailing: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (trip.status == TripStatus.started)
+                  const Icon(Icons.play_circle_fill, color: Colors.green),
+                if (trip.status == TripStatus.finished)
+                  const Icon(Icons.check_circle, color: Colors.grey),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.red),
+                  onPressed: () => _confirmDeleteTrip(trip),
+                ),
+              ],
             ),
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: Row(
+                  children: [
+                    if (trip.status == TripStatus.pending)
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => _confirmStartTripAdmin(trip),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                          child: const Text('Start Trip'),
+                        ),
+                      ),
+                    if (trip.status == TripStatus.started)
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () => adminProvider.updateTripStatus(trip.id, TripStatus.finished, _token),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                          child: const Text('Finish Trip'),
+                        ),
+                      ),
+                    if (trip.status == TripStatus.finished)
+                      const Expanded(
+                        child: Center(child: Text('Trip Finished', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
+                      ),
+                  ],
+                ),
+              )
+            ],
           ),
         );
       },
+    );
+  }
+
+  void _confirmStartTripAdmin(Trip trip) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Start Trip'),
+        content: const Text('Are you sure you want to start this trip now?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              context.read<AdminProvider>().updateTripStatus(trip.id, TripStatus.started, _token);
+            },
+            child: const Text('Start'),
+          ),
+        ],
+      ),
     );
   }
 
