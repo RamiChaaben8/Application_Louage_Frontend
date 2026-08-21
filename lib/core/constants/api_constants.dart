@@ -11,4 +11,11 @@ class ApiConstants {
   static String get ticketsEndpoint => '$baseUrl/Tickets';
   static String get stationsEndpoint => '$baseUrl/Stations';
   static String get vehiclesEndpoint => '$baseUrl/Vehicles';
+  static String get adminBaseEndpoint => '$baseUrl/Admin';
+  static String get adminUsersEndpoint => '$adminBaseEndpoint/users';
+  static String get adminCreateAdminEndpoint => '$adminBaseEndpoint/create-admin';
+  static String get adminPendingDriversEndpoint => '$adminBaseEndpoint/drivers/pending';
+  static String adminApproveDriverEndpoint(int id) => '$adminBaseEndpoint/drivers/$id/approve';
+  static String adminDeclineDriverEndpoint(int id) => '$adminBaseEndpoint/drivers/$id/decline';
+  static String adminDeleteUserEndpoint(int id) => '$adminBaseEndpoint/users/$id';
 }

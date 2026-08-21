@@ -5,6 +5,7 @@ class Driver extends User {
   final String licenseNumber;
   final bool isAvailable;
   final Vehicle? vehicle;
+  final String? status;
 
   Driver({
     required super.id,
@@ -15,6 +16,7 @@ class Driver extends User {
     required this.licenseNumber,
     required this.isAvailable,
     this.vehicle,
+    this.status,
   });
 
   factory Driver.fromJson(Map<String, dynamic> json) {
@@ -27,6 +29,7 @@ class Driver extends User {
       licenseNumber: json['licenseNumber'] ?? '',
       isAvailable: json['isAvailable'] ?? false,
       vehicle: json['vehicle'] != null ? Vehicle.fromJson(json['vehicle']) : null,
+      status: json['status'],
     );
   }
 
@@ -35,6 +38,7 @@ class Driver extends User {
     final Map<String, dynamic> data = super.toJson();
     data['licenseNumber'] = licenseNumber;
     data['isAvailable'] = isAvailable;
+    data['status'] = status;
     if (vehicle != null) {
       data['vehicle'] = vehicle!.toJson();
     }

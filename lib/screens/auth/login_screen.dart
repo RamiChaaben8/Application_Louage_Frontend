@@ -5,6 +5,8 @@ import '../home/main_navigation_screen.dart';
 import '../driver/driver_main_screen.dart';
 import 'signup_screen.dart';
 
+import '../admin/admin_main_screen.dart';
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -36,7 +38,12 @@ class _LoginScreenState extends State<LoginScreen> {
       if (!mounted) return;
 
       if (success) {
-        if (authProvider.isDriver) {
+        if (authProvider.isAdmin) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const AdminMainScreen()),
+          );
+        } else if (authProvider.isDriver) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const DriverMainScreen()),

@@ -4,9 +4,11 @@ import 'providers/auth_provider.dart';
 import 'providers/trip_provider.dart';
 import 'providers/ticket_provider.dart';
 import 'providers/driver_provider.dart';
+import 'providers/admin_provider.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/home/main_navigation_screen.dart';
 import 'screens/driver/driver_main_screen.dart';
+import 'screens/admin/admin_main_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -17,6 +19,7 @@ void main() {
         ChangeNotifierProvider(create: (_) => TripProvider()),
         ChangeNotifierProvider(create: (_) => TicketProvider()),
         ChangeNotifierProvider(create: (_) => DriverProvider()),
+        ChangeNotifierProvider(create: (_) => AdminProvider()),
       ],
       child: const ApplicationLouageApp(),
     ),
@@ -67,9 +70,11 @@ class _ApplicationLouageAppState extends State<ApplicationLouageApp> {
       home: _isChecking
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : (authProvider.isAuthenticated
-              ? (authProvider.isDriver
-                  ? const DriverMainScreen()
-                  : const MainNavigationScreen())
+              ? (authProvider.isAdmin
+                  ? const AdminMainScreen()
+                  : (authProvider.isDriver
+                      ? const DriverMainScreen()
+                      : const MainNavigationScreen()))
               : const LoginScreen()),
     );
   }
