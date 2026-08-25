@@ -3,6 +3,7 @@ class AdminUser {
   final String firstName;
   final String lastName;
   final String email;
+  final int? phoneNum;
   final String userType;
   final String? licenseNumber;
   final String? status;
@@ -13,6 +14,7 @@ class AdminUser {
     required this.firstName,
     required this.lastName,
     required this.email,
+    this.phoneNum,
     required this.userType,
     this.licenseNumber,
     this.status,
@@ -21,15 +23,16 @@ class AdminUser {
 
   factory AdminUser.fromJson(Map<String, dynamic> json) {
     return AdminUser(
-      id: json['id'],
-      firstName: json['firstName'] ?? '',
-      lastName: json['lastName'] ?? '',
-      email: json['email'] ?? '',
-      userType: json['userType'] ?? '',
-      licenseNumber: json['licenseNumber'],
-      status: json['status'],
-      vehicle: json['vehicle'] != null
-          ? AdminVehicleInfo.fromJson(json['vehicle'])
+      id: json['id'] ?? json['Id'] ?? 0,
+      firstName: json['firstName'] ?? json['FirstName'] ?? '',
+      lastName: json['lastName'] ?? json['LastName'] ?? '',
+      email: json['email'] ?? json['Email'] ?? '',
+      phoneNum: json['phoneNum'] ?? json['PhoneNum'],
+      userType: json['userType'] ?? json['UserType'] ?? '',
+      licenseNumber: json['licenseNumber'] ?? json['LicenseNumber'],
+      status: (json['status'] ?? json['Status'])?.toString(),
+      vehicle: (json['vehicle'] ?? json['Vehicle']) != null
+          ? AdminVehicleInfo.fromJson(json['vehicle'] ?? json['Vehicle'])
           : null,
     );
   }

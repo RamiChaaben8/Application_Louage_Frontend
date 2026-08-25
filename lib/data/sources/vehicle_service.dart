@@ -53,7 +53,7 @@ class VehicleService {
           'Content-Type': 'application/json',
           if (token != null) 'Authorization': 'Bearer $token',
         },
-        body: jsonEncode(status.index), // or status name
+        body: jsonEncode(status.index),
       ).timeout(const Duration(seconds: 10));
 
       return response.statusCode == 200 || response.statusCode == 204;

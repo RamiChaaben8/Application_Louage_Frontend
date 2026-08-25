@@ -19,13 +19,13 @@ class AuthResponse {
 
   factory AuthResponse.fromJson(Map<String, dynamic> json, {String email = ''}) {
     return AuthResponse(
-      token: json['token'] ?? '',
-      userId: json['userId'] ?? 0,
-      firstName: json['firstName'] ?? '',
-      lastName: json['lastName'] ?? '',
-      userType: json['userType'] ?? 'Customer',
-      email: json['email'] ?? email,
-      status: json['status'],
+      token: json['token'] ?? json['Token'] ?? '',
+      userId: json['userId'] ?? json['UserId'] ?? json['id'] ?? json['Id'] ?? 0,
+      firstName: json['firstName'] ?? json['FirstName'] ?? '',
+      lastName: json['lastName'] ?? json['LastName'] ?? '',
+      userType: json['userType'] ?? json['UserType'] ?? 'Customer',
+      email: json['email'] ?? json['Email'] ?? email,
+      status: (json['status'] ?? json['Status'])?.toString(),
     );
   }
 

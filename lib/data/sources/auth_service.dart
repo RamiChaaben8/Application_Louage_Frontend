@@ -177,14 +177,25 @@ class AuthService {
     );
   }
 
+  Future<void> saveStatus(String status) async {
+    await _storage.write(key: 'status', value: status);
+  }
+
   Future<String?> getDriverStatus(int driverId) async {
     try {
+      final token = await getToken();
       final url = ApiConstants.driverStatusEndpoint(driverId);
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 10));
+      final response = await http.get(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+      ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
-        final status = data['status']?.toString();
+        final status = (data['status'] ?? data['Status'])?.toString();
         if (status != null) {
           await _storage.write(key: 'status', value: status);
         }

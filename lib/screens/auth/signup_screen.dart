@@ -39,22 +39,55 @@ class _SignUpScreenState extends State<SignUpScreen> {
     super.dispose();
   }
 
+  int _parsePhoneNumber(String raw) {
+    final cleaned = raw.replaceAll(RegExp(r'\D'), '');
+    if (cleaned.isEmpty) return 0;
+    // Take the last 8 digits if prefixed with country code to guarantee it fits safely in 32-bit int
+    final truncated = cleaned.length > 8 ? cleaned.substring(cleaned.length - 8) : cleaned;
+    return int.tryParse(truncated) ?? 0;
+  }
+
   void _register() async {
     if (_formKey.currentState!.validate()) {
       final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
+      final phone = _parsePhoneNumber(_phoneController.text);
+      if (phone <= 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Please enter a valid phone number (at least 8 digits)'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       bool success = false;
 
       if (_selectedRole == 'driver') {
+        final plate = _plateController.text.trim().toUpperCase();
+        final license = _licenseController.text.trim();
+        final capacity = int.tryParse(_capacityController.text.trim()) ?? 8;
+
+        if (plate.isEmpty || license.isEmpty) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please provide both driver license and vehicle plate'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
         success = await authProvider.registerDriver(
           firstName: _firstNameController.text.trim(),
           lastName: _lastNameController.text.trim(),
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
-          phoneNum: int.tryParse(_phoneController.text.trim()) ?? 0,
-          licenseNumber: _licenseController.text.trim(),
-          plate: _plateController.text.trim(),
-          capacity: int.tryParse(_capacityController.text.trim()) ?? 8,
+          phoneNum: phone,
+          licenseNumber: license,
+          plate: plate,
+          capacity: capacity,
         );
       } else {
         success = await authProvider.registerCustomer(
@@ -62,7 +95,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           lastName: _lastNameController.text.trim(),
           email: _emailController.text.trim(),
           password: _passwordController.text.trim(),
-          phoneNum: int.tryParse(_phoneController.text.trim()) ?? 0,
+          phoneNum: phone,
         );
       }
 

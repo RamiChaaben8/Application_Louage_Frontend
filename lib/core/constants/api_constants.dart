@@ -1,7 +1,23 @@
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
+
 class ApiConstants {
-  // PC's local network IP — works for physical devices on the same WiFi
-  // If using Android Emulator, change this to 'http://10.0.2.2:5113/api'
-  static String get baseUrl => 'http://192.168.1.14:5113/api';
+  // Current PC local network IP on Wi-Fi (for physical Android/iOS devices)
+  static const String localIp = '192.168.1.186';
+  static const String port = '5113';
+
+  // Automatically select the proper host depending on whether app is running on Desktop/Web or Mobile
+  static String get baseUrl {
+    if (kIsWeb) {
+      return 'http://localhost:$port/api';
+    }
+    try {
+      if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
+        return 'http://localhost:$port/api';
+      }
+    } catch (_) {}
+    return 'http://$localIp:$port/api';
+  }
 
   static String get loginEndpoint => '$baseUrl/Auth/login';
   static String get registerCustomerEndpoint => '$baseUrl/Auth/register/customer';

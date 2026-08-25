@@ -22,6 +22,14 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
   }
 
+  void updateUserStatus(String status) {
+    if (_currentUser != null && _currentUser!.status != status) {
+      _currentUser = _currentUser!.copyWith(status: status);
+      _authService.saveStatus(status);
+      notifyListeners();
+    }
+  }
+
   Future<bool> login(String email, String password) async {
     _isLoading = true;
     _error = null;

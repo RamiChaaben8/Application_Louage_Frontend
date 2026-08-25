@@ -18,6 +18,24 @@ class Vehicle {
     this.driver,
   });
 
+  Vehicle copyWith({
+    int? id,
+    String? plate,
+    int? capacity,
+    VehicleStatus? status,
+    int? driverId,
+    Driver? driver,
+  }) {
+    return Vehicle(
+      id: id ?? this.id,
+      plate: plate ?? this.plate,
+      capacity: capacity ?? this.capacity,
+      status: status ?? this.status,
+      driverId: driverId ?? this.driverId,
+      driver: driver ?? this.driver,
+    );
+  }
+
   factory Vehicle.fromJson(Map<String, dynamic> json) {
     return Vehicle(
       id: json['id'],

@@ -20,14 +20,38 @@ class DriverProvider with ChangeNotifier {
   bool get isUpdatingStatus => _isUpdatingStatus;
   String? get error => _error;
 
-  bool get isApproved => _driverStatus?.toLowerCase() == 'approved';
-  bool get isDeclined => _driverStatus?.toLowerCase() == 'declined';
+  bool _isApprovedStatus(String? s) {
+    if (s == null) return false;
+    final lower = s.trim().toLowerCase();
+    return lower == 'approved' || lower == '1' || lower.contains('approved');
+  }
+
+  bool _isDeclinedStatus(String? s) {
+    if (s == null) return false;
+    final lower = s.trim().toLowerCase();
+    return lower == 'declined' || lower == '2' || lower.contains('declined');
+  }
+
+  bool get isApproved => _isApprovedStatus(_driverStatus) || _assignedVehicle != null;
+  bool get isDeclined => _isDeclinedStatus(_driverStatus) && !isApproved;
   bool get isPending => !isApproved && !isDeclined;
 
   // Driver can access dashboard if approved or has assigned vehicle
   bool get isVerified => isApproved;
 
-  Future<void> checkDriverStatus(int driverId) async {
+  bool isUserApproved(dynamic user) {
+    if (isApproved) return true;
+    final userStatus = (user != null && user.status != null) ? user.status.toString() : null;
+    if (_isApprovedStatus(userStatus)) return true;
+    if (_assignedVehicle != null) return true;
+    return false;
+  }
+
+  Future<void> checkDriverStatus(int driverId, {String? fallbackStatus, Function(String)? onStatusUpdated}) async {
+    if (_driverStatus == null && fallbackStatus != null) {
+      _driverStatus = fallbackStatus;
+    }
+
     _isLoading = true;
     _error = null;
     notifyListeners();
@@ -36,6 +60,7 @@ class DriverProvider with ChangeNotifier {
       final status = await _authService.getDriverStatus(driverId);
       if (status != null) {
         _driverStatus = status;
+        onStatusUpdated?.call(status);
       }
 
       _assignedVehicle = await _vehicleService.getDriverVehicle(driverId);
@@ -53,11 +78,19 @@ class DriverProvider with ChangeNotifier {
     _isUpdatingStatus = true;
     notifyListeners();
 
-    final success = await _vehicleService.updateVehicleStatus(_assignedVehicle!.id, status);
+    final currentVehicle = _assignedVehicle!;
+    final success = await _vehicleService.updateVehicleStatus(currentVehicle.id, status);
 
     if (success) {
-      // Re-fetch vehicle details
-      _assignedVehicle = await _vehicleService.getDriverVehicle(_assignedVehicle!.driverId);
+      // Optimistically update vehicle status immediately
+      _assignedVehicle = currentVehicle.copyWith(status: status);
+      notifyListeners();
+
+      // Re-fetch vehicle details to stay synced with backend
+      final refreshed = await _vehicleService.getDriverVehicle(currentVehicle.driverId);
+      if (refreshed != null) {
+        _assignedVehicle = refreshed;
+      }
     }
 
     _isUpdatingStatus = false;
