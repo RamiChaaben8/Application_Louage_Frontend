@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import '../../core/constants/api_constants.dart';
+import '../../data/models/station_model.dart';
 import '../../providers/auth_provider.dart';
 import '../home/main_navigation_screen.dart';
 import '../driver/driver_main_screen.dart';
@@ -25,6 +29,33 @@ class _SignUpScreenState extends State<SignUpScreen> {
 
   // Role selection: 'customer' or 'driver'
   String _selectedRole = 'customer';
+
+  bool _isLoadingStations = false;
+  List<Station> _stations = [];
+  final List<int> _selectedStationIds = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchStations();
+  }
+
+  Future<void> _fetchStations() async {
+    setState(() => _isLoadingStations = true);
+    try {
+      final res = await http.get(Uri.parse(ApiConstants.stationsEndpoint));
+      if (res.statusCode == 200) {
+        final List data = jsonDecode(res.body);
+        setState(() {
+          _stations = data.map((e) => Station.fromJson(e)).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching stations: $e');
+    } finally {
+      setState(() => _isLoadingStations = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -79,6 +110,16 @@ class _SignUpScreenState extends State<SignUpScreen> {
           return;
         }
 
+        if (_selectedStationIds.length < 2) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Please select at least 2 stations your louage goes to'),
+              backgroundColor: Colors.red,
+            ),
+          );
+          return;
+        }
+
         success = await authProvider.registerDriver(
           firstName: _firstNameController.text.trim(),
           lastName: _lastNameController.text.trim(),
@@ -88,6 +129,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
           licenseNumber: license,
           plate: plate,
           capacity: capacity,
+          stationIds: _selectedStationIds,
         );
       } else {
         success = await authProvider.registerCustomer(
@@ -340,10 +382,52 @@ class _SignUpScreenState extends State<SignUpScreen> {
                       border: OutlineInputBorder(),
                     ),
                     validator: (v) =>
-                        int.tryParse(v ?? '') == null || int.parse(v!) < 1
-                            ? 'Enter a valid seat count'
+                        int.tryParse(v ?? '') == null || int.parse(v!) < 2
+                            ? 'Capacity must be at least 2 seats'
                             : null,
                   ),
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.map, size: 18, color: Colors.blueGrey),
+                        SizedBox(width: 8),
+                        Text(
+                          'Destinations (Min 2 required)',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: Colors.blueGrey,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  if (_isLoadingStations)
+                    const Center(child: CircularProgressIndicator())
+                  else if (_stations.isEmpty)
+                    const Text('No stations available.')
+                  else
+                    Wrap(
+                      spacing: 8.0,
+                      children: _stations.map((station) {
+                        final isSelected = _selectedStationIds.contains(station.id);
+                        return FilterChip(
+                          label: Text(station.name),
+                          selected: isSelected,
+                          onSelected: (bool selected) {
+                            setState(() {
+                              if (selected) {
+                                _selectedStationIds.add(station.id);
+                              } else {
+                                _selectedStationIds.remove(station.id);
+                              }
+                            });
+                          },
+                        );
+                      }).toList(),
+                    ),
                   const SizedBox(height: 16),
                 ],
 

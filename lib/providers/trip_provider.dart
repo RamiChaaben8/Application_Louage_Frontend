@@ -16,6 +16,7 @@ class TripProvider with ChangeNotifier {
   Station? _selectedStartStation;
   Station? _selectedEndStation;
   DateTime? _selectedDate;
+  int? _driverId;
 
   List<Station> get stations => _stations;
   List<Trip> get trips => _trips;
@@ -26,6 +27,7 @@ class TripProvider with ChangeNotifier {
   Station? get selectedStartStation => _selectedStartStation;
   Station? get selectedEndStation => _selectedEndStation;
   DateTime? get selectedDate => _selectedDate;
+  int? get driverId => _driverId;
 
   void setStartStation(Station? station) {
     _selectedStartStation = station;
@@ -46,6 +48,7 @@ class TripProvider with ChangeNotifier {
     _selectedStartStation = null;
     _selectedEndStation = null;
     _selectedDate = null;
+    _driverId = null;
     notifyListeners();
     searchTrips();
   }
@@ -60,7 +63,15 @@ class TripProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<void> searchTrips() async {
+  Future<void> loadDriverTrips(int driverId) async {
+    _driverId = driverId;
+    await searchTrips(driverId: driverId);
+  }
+
+  Future<void> searchTrips({int? driverId}) async {
+    if (driverId != null) {
+      _driverId = driverId;
+    }
     _isLoadingTrips = true;
     _error = null;
     notifyListeners();
@@ -69,6 +80,7 @@ class TripProvider with ChangeNotifier {
       startStationId: _selectedStartStation?.id,
       endStationId: _selectedEndStation?.id,
       date: _selectedDate,
+      driverId: _driverId,
     );
 
     _isLoadingTrips = false;
@@ -88,7 +100,7 @@ class TripProvider with ChangeNotifier {
       driverId: driverId,
     );
     if (success) {
-      await searchTrips(); // Refresh list after creation
+      await searchTrips(driverId: driverId ?? _driverId); // Refresh list after creation
     }
     return success;
   }
@@ -97,7 +109,7 @@ class TripProvider with ChangeNotifier {
     final success = await _tripService.updateTripStatus(tripId, status.index);
     if (success) {
       // Find the trip and update its status locally or just re-fetch
-      await searchTrips();
+      await searchTrips(driverId: _driverId);
     }
     return success;
   }

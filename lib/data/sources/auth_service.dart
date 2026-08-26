@@ -90,6 +90,7 @@ class AuthService {
     required String licenseNumber,
     required String plate,
     required int capacity,
+    required List<int> stationIds,
   }) async {
     try {
       final url = ApiConstants.registerDriverEndpoint;
@@ -102,6 +103,7 @@ class AuthService {
         'licenseNumber': licenseNumber,
         'plate': plate,
         'capacity': capacity,
+        'stationIds': stationIds,
       });
 
       print('[REGISTER DRIVER] POST $url');
@@ -181,7 +183,7 @@ class AuthService {
     await _storage.write(key: 'status', value: status);
   }
 
-  Future<String?> getDriverStatus(int driverId) async {
+  Future<Map<String, dynamic>?> getDriverDetails(int driverId) async {
     try {
       final token = await getToken();
       final url = ApiConstants.driverStatusEndpoint(driverId);
@@ -194,17 +196,37 @@ class AuthService {
       ).timeout(const Duration(seconds: 10));
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
         final status = (data['status'] ?? data['Status'])?.toString();
         if (status != null) {
           await _storage.write(key: 'status', value: status);
         }
-        return status;
+        return data;
       }
       return null;
     } catch (e) {
-      print('[AuthService] getDriverStatus error: $e');
+      print('[AuthService] getDriverDetails error: $e');
       return null;
+    }
+  }
+
+  Future<bool> updateDriverCurrentStation(int driverId, int stationId) async {
+    try {
+      final token = await getToken();
+      final url = ApiConstants.driverCurrentStationEndpoint(driverId);
+      final response = await http.put(
+        Uri.parse(url),
+        headers: {
+          'Content-Type': 'application/json',
+          if (token != null) 'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode(stationId),
+      ).timeout(const Duration(seconds: 10));
+
+      return response.statusCode == 200 || response.statusCode == 204;
+    } catch (e) {
+      print('[AuthService] updateDriverCurrentStation error: $e');
+      return false;
     }
   }
 }

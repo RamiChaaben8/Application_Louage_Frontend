@@ -81,6 +81,7 @@ class AuthProvider with ChangeNotifier {
     required String licenseNumber,
     required String plate,
     required int capacity,
+    required List<int> stationIds,
   }) async {
     _isLoading = true;
     _error = null;
@@ -95,6 +96,7 @@ class AuthProvider with ChangeNotifier {
       licenseNumber: licenseNumber,
       plate: plate,
       capacity: capacity,
+      stationIds: stationIds,
     );
     _currentUser = user;
     _error = err;

@@ -1,11 +1,15 @@
 import 'user_model.dart';
 import 'vehicle_model.dart';
+import 'station_model.dart';
 
 class Driver extends User {
   final String licenseNumber;
   final bool isAvailable;
   final Vehicle? vehicle;
   final String? status;
+  final int? currentStationId;
+  final Station? currentStation;
+  final List<Station> stations;
 
   Driver({
     required super.id,
@@ -17,6 +21,9 @@ class Driver extends User {
     required this.isAvailable,
     this.vehicle,
     this.status,
+    this.currentStationId,
+    this.currentStation,
+    this.stations = const [],
   });
 
   factory Driver.fromJson(Map<String, dynamic> json) {
@@ -30,6 +37,11 @@ class Driver extends User {
       isAvailable: json['isAvailable'] ?? false,
       vehicle: json['vehicle'] != null ? Vehicle.fromJson(json['vehicle']) : null,
       status: json['status'],
+      currentStationId: json['currentStationId'],
+      currentStation: json['currentStation'] != null ? Station.fromJson(json['currentStation']) : null,
+      stations: json['stations'] != null
+          ? (json['stations'] as List).map((s) => Station.fromJson(s)).toList()
+          : [],
     );
   }
 
@@ -39,9 +51,14 @@ class Driver extends User {
     data['licenseNumber'] = licenseNumber;
     data['isAvailable'] = isAvailable;
     data['status'] = status;
+    data['currentStationId'] = currentStationId;
+    if (currentStation != null) {
+      data['currentStation'] = currentStation!.toJson();
+    }
     if (vehicle != null) {
       data['vehicle'] = vehicle!.toJson();
     }
+    data['stations'] = stations.map((s) => s.toJson()).toList();
     return data;
   }
 }

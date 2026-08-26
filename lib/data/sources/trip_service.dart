@@ -30,6 +30,7 @@ class TripService {
     int? startStationId,
     int? endStationId,
     DateTime? date,
+    int? driverId,
   }) async {
     try {
       final queryParams = <String, String>{};
@@ -41,6 +42,9 @@ class TripService {
       }
       if (date != null) {
         queryParams['date'] = date.toIso8601String();
+      }
+      if (driverId != null && driverId > 0) {
+        queryParams['driverId'] = driverId.toString();
       }
 
       final uri = Uri.parse(ApiConstants.tripsEndpoint).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);

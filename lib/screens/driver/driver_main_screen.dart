@@ -25,20 +25,122 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _checkStatus());
   }
 
-  void _checkStatus() {
+  bool _hasPromptedStationSelection = false;
+
+  void _checkStatus() async {
     final auth   = Provider.of<AuthProvider>(context, listen: false);
     final driver = Provider.of<DriverProvider>(context, listen: false);
     final trips  = Provider.of<TripProvider>(context, listen: false);
     final id = auth.currentUser?.userId ?? 0;
     if (id > 0) {
-      driver.checkDriverStatus(
+      await driver.checkDriverStatus(
         id,
         fallbackStatus: auth.currentUser?.status,
         onStatusUpdated: (s) => auth.updateUserStatus(s),
       );
-      trips.loadStations();
-      trips.searchTrips();
+      await trips.loadStations();
+      await trips.loadDriverTrips(id);
+
+      if (mounted && (driver.isApproved || driver.isUserApproved(auth.currentUser))) {
+        if (driver.currentStation == null && !_hasPromptedStationSelection) {
+          _hasPromptedStationSelection = true;
+          _showSelectStationDialog(driver, trips, id, isInitial: true);
+        }
+      }
     }
+  }
+
+  void _showSelectStationDialog(DriverProvider dp, TripProvider tp, int driverId, {bool isInitial = false}) {
+    final availableStations = dp.driverStations.isNotEmpty ? dp.driverStations : tp.stations;
+    int? selectedId = dp.currentStation?.id ?? (availableStations.isNotEmpty ? availableStations.first.id : null);
+
+    showDialog(
+      context: context,
+      barrierDismissible: !isInitial,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx2, setState2) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(color: const Color(0xFFEFF6FF), borderRadius: BorderRadius.circular(10)),
+                child: const Icon(Icons.location_on_rounded, color: _kAccent, size: 22),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  isInitial ? 'Select Current Station' : 'Change Current Station',
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 17),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                isInitial
+                    ? 'Please choose the station where you and your louage are currently stationed:'
+                    : 'Select your new current station:',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+              ),
+              const SizedBox(height: 16),
+              if (availableStations.isEmpty)
+                const Text('No stations available.')
+              else
+                DropdownButtonFormField<int>(
+                  decoration: InputDecoration(
+                    labelText: 'Station',
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                    prefixIcon: const Icon(Icons.pin_drop_rounded),
+                  ),
+                  value: selectedId,
+                  items: availableStations.map((s) => DropdownMenuItem(
+                    value: s.id,
+                    child: Text('${s.city} (${s.name})'),
+                  )).toList(),
+                  onChanged: (v) => setState2(() => selectedId = v),
+                ),
+            ],
+          ),
+          actions: [
+            if (!isInitial)
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+            FilledButton(
+              onPressed: selectedId == null
+                  ? null
+                  : () async {
+                      Navigator.pop(ctx);
+                      final ok = await dp.updateCurrentStation(driverId, selectedId!);
+                      if (!mounted) return;
+                      if (ok) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text('Current station set to ${dp.currentStation?.city ?? 'selected station'}'),
+                            backgroundColor: Colors.green.shade600,
+                          ),
+                        );
+                      } else {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Failed to update current station'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                    },
+              style: FilledButton.styleFrom(backgroundColor: _kAccent),
+              child: const Text('Confirm Station'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _logout() async {
@@ -182,6 +284,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
       Padding(
         padding: const EdgeInsets.fromLTRB(20, 24, 20, 32),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _sectionLabel('Current Station', Icons.location_on_rounded),
+          const SizedBox(height: 12),
+          _currentStationCard(dp, tp, user),
+          const SizedBox(height: 24),
           _sectionLabel('Assigned Vehicle', Icons.directions_car_rounded),
           const SizedBox(height: 12),
           if (vehicle != null) ...[
@@ -199,8 +305,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
   }
 
   Widget _buildTripsSection(TripProvider tp, DriverProvider dp, dynamic user) {
-    final activeTrips = tp.trips.where((t) => t.status != TripStatus.finished).toList();
-    final finishedTrips = tp.trips.where((t) => t.status == TripStatus.finished).toList();
+    final driverId = user?.userId;
+    final driverTrips = tp.trips.where((t) => t.driverId == driverId).toList();
+    final activeTrips = driverTrips.where((t) => t.status != TripStatus.finished).toList();
+    final finishedTrips = driverTrips.where((t) => t.status == TripStatus.finished).toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -210,7 +318,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           children: [
             _sectionLabel('Trips Schedule', Icons.route_rounded),
             FilledButton.icon(
-              onPressed: () => _createTripDialog(tp, user?.userId),
+              onPressed: () => _createTripDialog(tp, dp, user?.userId),
               icon: const Icon(Icons.add_rounded, size: 17),
               label: const Text('New Trip', style: TextStyle(fontWeight: FontWeight.w600)),
               style: FilledButton.styleFrom(
@@ -441,7 +549,7 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
                         if (trip.status == TripStatus.pending)
                           _actionBtn(Icons.play_arrow_rounded, 'Start Trip', _kAccent, () => _confirmStart(tp, dp, trip.id)),
                         if (trip.status == TripStatus.started)
-                          _actionBtn(Icons.flag_rounded, 'Finish Trip', Colors.green.shade600, () => _confirmFinish(tp, dp, trip.id)),
+                          _actionBtn(Icons.flag_rounded, 'Finish Trip', Colors.green.shade600, () => _confirmFinish(tp, dp, trip, user)),
                         if (trip.status == TripStatus.finished)
                           Container(
                             width: double.infinity,
@@ -518,6 +626,65 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
         Text(sub, style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 13)),
       ]),
     );
+
+  // ─── Current Station card ──────────────────────────────────────────────────
+  Widget _currentStationCard(DriverProvider dp, TripProvider tp, dynamic user) {
+    final station = dp.currentStation;
+    final driverId = user?.userId ?? 0;
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.07), blurRadius: 14, offset: const Offset(0, 5))],
+      ),
+      padding: const EdgeInsets.all(18),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: station != null ? const Color(0xFFEFF6FF) : Colors.orange.shade50,
+              borderRadius: BorderRadius.circular(14),
+            ),
+            child: Icon(
+              Icons.location_on_rounded,
+              color: station != null ? _kAccent : Colors.orange.shade700,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Current Location', style: TextStyle(color: Colors.grey, fontSize: 11, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 3),
+                Text(
+                  station != null ? '${station.city} (${station.name})' : 'Not Selected',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w800,
+                    color: station != null ? Colors.black87 : Colors.orange.shade800,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          FilledButton.tonalIcon(
+            onPressed: () => _showSelectStationDialog(dp, tp, driverId),
+            icon: Icon(station != null ? Icons.edit_location_alt_rounded : Icons.add_location_alt_rounded, size: 16),
+            label: Text(station != null ? 'Change' : 'Select', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12)),
+            style: FilledButton.styleFrom(
+              backgroundColor: const Color(0xFFEFF6FF),
+              foregroundColor: _kAccent,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   // ─── Vehicle card ─────────────────────────────────────────────────────────
   Widget _vehicleCard(dynamic vehicle, DriverProvider dp) {
@@ -640,34 +807,39 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     );
   }
 
-  void _confirmFinish(TripProvider tp, DriverProvider dp, int id) {
+  void _confirmFinish(TripProvider tp, DriverProvider dp, dynamic trip, dynamic user) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Finish Trip', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text('Are you sure you want to finish this trip? Your vehicle status will change to Available.'),
+        content: const Text('Are you sure you want to finish this trip? Your current station will automatically update to the arrival station.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           FilledButton(
             onPressed: () async {
               Navigator.pop(ctx);
-              final ok = await tp.updateTripStatus(id, TripStatus.finished);
+              final ok = await tp.updateTripStatus(trip.id, TripStatus.finished);
               if (!mounted) return;
               if (ok) {
                 if (dp.assignedVehicle != null) {
                   await dp.setVehicleStatus(VehicleStatus.available);
                 }
-                if (mounted) {
-                  setState(() => _selectedTripTab = 1);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: const Text('Trip marked as finished! Vehicle status updated to Available.'),
-                      backgroundColor: Colors.green.shade600,
-                      duration: const Duration(seconds: 3),
-                    ),
-                  );
+                final driverId = user?.userId ?? 0;
+                if (driverId > 0) {
+                  await dp.checkDriverStatus(driverId);
+                  await tp.loadDriverTrips(driverId);
                 }
+                if (!mounted) return;
+                setState(() => _selectedTripTab = 1);
+                final destName = trip.endStation?.city ?? dp.currentStation?.city ?? 'destination';
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text('Trip completed! Current location updated to $destName.'),
+                    backgroundColor: Colors.green.shade600,
+                    duration: const Duration(seconds: 4),
+                  ),
+                );
               } else {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
@@ -685,8 +857,11 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     );
   }
 
-  void _createTripDialog(TripProvider tp, int? driverId) {
-    int? ss; int? es; TimeOfDay t = TimeOfDay.now();
+  void _createTripDialog(TripProvider tp, DriverProvider dp, int? driverId) {
+    final availableStations = dp.driverStations.isNotEmpty ? dp.driverStations : tp.stations;
+    int? ss = dp.currentStation?.id;
+    int? es;
+    TimeOfDay t = TimeOfDay.now();
     showDialog(
       context: context,
       builder: (ctx) => StatefulBuilder(
@@ -696,12 +871,16 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
             DropdownButtonFormField<int>(
               decoration: InputDecoration(labelText: 'Start Station', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), prefixIcon: const Icon(Icons.location_on_outlined)),
-              initialValue: ss, items: tp.stations.map((s) => DropdownMenuItem(value: s.id, child: Text(s.city))).toList(), onChanged: (v) => ss2(() => ss = v),
+              value: ss,
+              items: availableStations.map((s) => DropdownMenuItem(value: s.id, child: Text(s.city))).toList(),
+              onChanged: (v) => ss2(() => ss = v),
             ),
             const SizedBox(height: 14),
             DropdownButtonFormField<int>(
               decoration: InputDecoration(labelText: 'End Station', border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)), prefixIcon: const Icon(Icons.flag_outlined)),
-              initialValue: es, items: tp.stations.map((s) => DropdownMenuItem(value: s.id, child: Text(s.city))).toList(), onChanged: (v) => ss2(() => es = v),
+              value: es,
+              items: availableStations.map((s) => DropdownMenuItem(value: s.id, child: Text(s.city))).toList(),
+              onChanged: (v) => ss2(() => es = v),
             ),
             const SizedBox(height: 14),
             InkWell(
