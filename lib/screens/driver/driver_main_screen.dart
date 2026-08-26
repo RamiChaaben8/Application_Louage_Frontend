@@ -310,6 +310,10 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
     final activeTrips = driverTrips.where((t) => t.status != TripStatus.finished).toList();
     final finishedTrips = driverTrips.where((t) => t.status == TripStatus.finished).toList();
 
+    // Driver is blocked from creating a new trip if they have any pending or started trip
+    final isInActiveTrip = activeTrips.any((t) =>
+        t.status == TripStatus.pending || t.status == TripStatus.started);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -317,18 +321,41 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _sectionLabel('Trips Schedule', Icons.route_rounded),
-            FilledButton.icon(
-              onPressed: () => _createTripDialog(tp, dp, user?.userId),
-              icon: const Icon(Icons.add_rounded, size: 17),
-              label: const Text('New Trip', style: TextStyle(fontWeight: FontWeight.w600)),
-              style: FilledButton.styleFrom(
-                backgroundColor: _kAccent,
-                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            if (!isInActiveTrip)
+              FilledButton.icon(
+                onPressed: () => _createTripDialog(tp, dp, user?.userId),
+                icon: const Icon(Icons.add_rounded, size: 17),
+                label: const Text('New Trip', style: TextStyle(fontWeight: FontWeight.w600)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: _kAccent,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              )
+            else
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.block_rounded, size: 14, color: Colors.orange.shade700),
+                  const SizedBox(width: 5),
+                  Text('Trip in progress', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.orange.shade800)),
+                ]),
               ),
-            ),
           ],
         ),
+        if (isInActiveTrip) ...[
+          const SizedBox(height: 8),
+          _notice(
+            Icons.info_outline_rounded,
+            Colors.orange.shade700,
+            'You already have an active trip. Finish or cancel your current trip before creating a new one.',
+          ),
+        ],
         const SizedBox(height: 12),
         // Filter Tabs
         Container(

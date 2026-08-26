@@ -11,6 +11,7 @@ class AdminProvider extends ChangeNotifier {
 
   List<AdminUser> users = [];
   List<AdminUser> pendingDrivers = [];
+  List<AdminUser> availableDrivers = [];
   List<Station> stations = [];
   List<Vehicle> vehicles = [];
   List<Trip> trips = [];
@@ -114,6 +115,13 @@ class AdminProvider extends ChangeNotifier {
     return true;
   }
 
+  Future<void> fetchAvailableDrivers(String token, {int? stationId}) async {
+    final (drivers, err) = await _adminService.getAvailableDrivers(token, stationId: stationId);
+    availableDrivers = drivers ?? [];
+    if (err != null) error = err;
+    notifyListeners();
+  }
+
   // ─── Stations ───────────────────────────────────────────────────────
   Future<void> fetchStations() async {
     _setLoading(true);
@@ -210,6 +218,7 @@ class AdminProvider extends ChangeNotifier {
     required int startStationId,
     required int endStationId,
     required DateTime departureTime,
+    int? driverId,
   }) async {
     _setLoading(true);
     final (trip, err) = await _adminService.createTrip(
@@ -217,6 +226,7 @@ class AdminProvider extends ChangeNotifier {
       startStationId: startStationId,
       endStationId: endStationId,
       departureTime: departureTime,
+      driverId: driverId,
     );
 
     if (err != null) {

@@ -128,6 +128,25 @@ class AdminService {
     }
   }
 
+  Future<(List<AdminUser>?, String?)> getAvailableDrivers(String token, {int? stationId}) async {
+    try {
+      final response = await http.get(
+        Uri.parse(ApiConstants.adminAvailableDriversEndpoint(stationId: stationId)),
+        headers: {'Authorization': 'Bearer $token'},
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        final drivers = data.map((json) => AdminUser.fromJson(json)).toList();
+        return (drivers, null);
+      } else {
+        return (null, _extractErrorMessage(response));
+      }
+    } catch (e) {
+      return (null, e.toString());
+    }
+  }
+
   // ─── Stations ───────────────────────────────────────────────────────
   Future<List<Station>> getAllStations() async {
     try {
@@ -272,6 +291,7 @@ class AdminService {
     required int startStationId,
     required int endStationId,
     required DateTime departureTime,
+    int? driverId,
   }) async {
     try {
       final response = await http.post(
@@ -284,6 +304,7 @@ class AdminService {
           'startStationId': startStationId,
           'endStationId': endStationId,
           'departureTime': departureTime.toIso8601String(),
+          if (driverId != null) 'driverId': driverId,
         }),
       );
 

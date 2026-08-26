@@ -1,3 +1,5 @@
+import 'station_model.dart';
+
 class AdminUser {
   final int id;
   final String firstName;
@@ -7,6 +9,9 @@ class AdminUser {
   final String userType;
   final String? licenseNumber;
   final String? status;
+  final bool isAvailable;
+  final int? currentStationId;
+  final Station? currentStation;
   final AdminVehicleInfo? vehicle;
 
   AdminUser({
@@ -18,6 +23,9 @@ class AdminUser {
     required this.userType,
     this.licenseNumber,
     this.status,
+    this.isAvailable = false,
+    this.currentStationId,
+    this.currentStation,
     this.vehicle,
   });
 
@@ -31,6 +39,11 @@ class AdminUser {
       userType: json['userType'] ?? json['UserType'] ?? '',
       licenseNumber: json['licenseNumber'] ?? json['LicenseNumber'],
       status: (json['status'] ?? json['Status'])?.toString(),
+      isAvailable: json['isAvailable'] ?? json['IsAvailable'] ?? false,
+      currentStationId: json['currentStationId'] ?? json['CurrentStationId'],
+      currentStation: (json['currentStation'] ?? json['CurrentStation']) != null
+          ? Station.fromJson(json['currentStation'] ?? json['CurrentStation'])
+          : null,
       vehicle: (json['vehicle'] ?? json['Vehicle']) != null
           ? AdminVehicleInfo.fromJson(json['vehicle'] ?? json['Vehicle'])
           : null,

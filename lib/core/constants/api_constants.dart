@@ -36,4 +36,7 @@ class ApiConstants {
   static String adminDeleteUserEndpoint(int id) => '$adminBaseEndpoint/users/$id';
   static String driverStatusEndpoint(int id) => '$baseUrl/Auth/driver-status/$id';
   static String driverCurrentStationEndpoint(int id) => '$baseUrl/Auth/driver/$id/current-station';
+  static String adminAvailableDriversEndpoint({int? stationId}) => stationId != null
+      ? '$adminBaseEndpoint/drivers/available?stationId=$stationId'
+      : '$adminBaseEndpoint/drivers/available';
 }

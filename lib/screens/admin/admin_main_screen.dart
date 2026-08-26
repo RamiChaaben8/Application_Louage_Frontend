@@ -5,7 +5,6 @@ import '../../providers/auth_provider.dart';
 import '../auth/login_screen.dart';
 import '../../data/models/admin_user_model.dart';
 import '../../data/models/station_model.dart';
-import '../../data/models/vehicle_model.dart';
 import '../../data/models/trip_model.dart';
 import '../../data/models/enums.dart';
 
@@ -44,9 +43,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         adminProvider.fetchStations();
         break;
       case 3:
-        adminProvider.fetchVehicles();
-        break;
-      case 4:
         adminProvider.fetchTrips();
         break;
     }
@@ -121,8 +117,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             case 2:
               return _buildStationsTab(adminProvider);
             case 3:
-              return _buildVehiclesTab(adminProvider);
-            case 4:
               return _buildTripsTab(adminProvider);
             default:
               return const SizedBox.shrink();
@@ -152,10 +146,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             label: 'Stations',
           ),
           NavigationDestination(
-            icon: Icon(Icons.directions_car),
-            label: 'Vehicles',
-          ),
-          NavigationDestination(
             icon: Icon(Icons.route),
             label: 'Trips',
           ),
@@ -179,12 +169,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
           label: const Text('Add Station'),
         );
       case 3:
-        return FloatingActionButton.extended(
-          onPressed: _showCreateVehicleDialog,
-          icon: const Icon(Icons.add),
-          label: const Text('Add Vehicle'),
-        );
-      case 4:
         return FloatingActionButton.extended(
           onPressed: _showCreateTripDialog,
           icon: const Icon(Icons.add_road),
@@ -724,124 +708,8 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     );
   }
 
-  // 4. VEHICLES TAB
-  Widget _buildVehiclesTab(AdminProvider adminProvider) {
-    final vehicles = adminProvider.vehicles;
 
-    if (vehicles.isEmpty) {
-      return const Center(child: Text('No vehicles added yet.'));
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: vehicles.length,
-      itemBuilder: (context, index) {
-        final vehicle = vehicles[index];
-        return Card(
-          elevation: 1,
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: const CircleAvatar(
-              backgroundColor: Colors.teal,
-              child: Icon(Icons.directions_car, color: Colors.white),
-            ),
-            title: Text(vehicle.plate, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('Capacity: ${vehicle.capacity} seats | Driver ID: ${vehicle.driverId}'),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              onPressed: () => _confirmDeleteVehicle(vehicle),
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  void _showCreateVehicleDialog() {
-    final plateCtrl = TextEditingController();
-    final capCtrl = TextEditingController(text: '8');
-    final driverIdCtrl = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add Vehicle'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: plateCtrl,
-                decoration: const InputDecoration(labelText: 'Plate (e.g. 123 TUN 4567)'),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              TextFormField(
-                controller: capCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Capacity (Seats)'),
-                validator: (v) => int.tryParse(v ?? '') == null ? 'Valid number required' : null,
-              ),
-              TextFormField(
-                controller: driverIdCtrl,
-                keyboardType: TextInputType.number,
-                decoration: const InputDecoration(labelText: 'Driver User ID'),
-                validator: (v) => int.tryParse(v ?? '') == null ? 'Valid driver ID required' : null,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-          ElevatedButton(
-            onPressed: () async {
-              if (formKey.currentState!.validate()) {
-                Navigator.of(ctx).pop();
-                final messenger = ScaffoldMessenger.of(context);
-                final success = await context.read<AdminProvider>().createVehicle(
-                      token: _token,
-                      plate: plateCtrl.text.trim(),
-                      capacity: int.parse(capCtrl.text.trim()),
-                      driverId: int.parse(driverIdCtrl.text.trim()),
-                    );
-                if (success && mounted) {
-                  messenger.showSnackBar(const SnackBar(content: Text('Vehicle added!')));
-                }
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _confirmDeleteVehicle(Vehicle vehicle) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Vehicle?'),
-        content: Text('Are you sure you want to delete vehicle ${vehicle.plate}?'),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              Navigator.of(ctx).pop();
-              final messenger = ScaffoldMessenger.of(context);
-              final success = await context.read<AdminProvider>().deleteVehicle(vehicle.id, _token);
-              if (success && mounted) {
-                messenger.showSnackBar(const SnackBar(content: Text('Vehicle deleted')));
-              }
-            },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // 5. TRIPS TAB
+  // 4. TRIPS TAB
   Widget _buildTripsTab(AdminProvider adminProvider) {
     final trips = adminProvider.trips;
 
@@ -956,6 +824,18 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     int startId = stations.first.id;
     int endId = stations[1].id;
     DateTime selectedDate = DateTime.now().add(const Duration(hours: 2));
+    int? selectedDriverId;
+    List<AdminUser> availableDrivers = [];
+    bool loadingDrivers = false;
+
+    // Helper to load available drivers for a given station
+    Future<List<AdminUser>> loadDriversForStation(int stationId) async {
+      await adminProvider.fetchAvailableDrivers(_token, stationId: stationId);
+      return adminProvider.availableDrivers;
+    }
+
+    // Load initial drivers for the default start station
+    availableDrivers = await loadDriversForStation(startId);
 
     if (!mounted) return;
     showDialog(
@@ -978,8 +858,19 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                             child: Text('${s.name} (${s.city})'),
                           ))
                       .toList(),
-                  onChanged: (v) {
-                    if (v != null) setModalState(() => startId = v);
+                  onChanged: (v) async {
+                    if (v != null) {
+                      setModalState(() {
+                        startId = v;
+                        selectedDriverId = null;
+                        loadingDrivers = true;
+                      });
+                      final drivers = await loadDriversForStation(v);
+                      setModalState(() {
+                        availableDrivers = drivers;
+                        loadingDrivers = false;
+                      });
+                    }
                   },
                 ),
                 const SizedBox(height: 12),
@@ -997,6 +888,37 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                     if (v != null) setModalState(() => endId = v);
                   },
                 ),
+                const SizedBox(height: 12),
+                const Text('Driver (optional):', style: TextStyle(fontWeight: FontWeight.bold)),
+                if (loadingDrivers)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 8),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (availableDrivers.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'No available drivers at selected start station.',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                    ),
+                  )
+                else
+                  DropdownButton<int?>(
+                    isExpanded: true,
+                    value: selectedDriverId,
+                    hint: const Text('Select a driver...'),
+                    items: [
+                      const DropdownMenuItem<int?>(value: null, child: Text('— None —')),
+                      ...availableDrivers.map((d) => DropdownMenuItem<int?>(
+                            value: d.id,
+                            child: Text(
+                              '${d.firstName} ${d.lastName}${d.currentStation != null ? " — ${d.currentStation!.name}" : ""}',
+                            ),
+                          )),
+                    ],
+                    onChanged: (v) => setModalState(() => selectedDriverId = v),
+                  ),
                 const SizedBox(height: 12),
                 ListTile(
                   contentPadding: EdgeInsets.zero,
@@ -1053,6 +975,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                       startStationId: startId,
                       endStationId: endId,
                       departureTime: selectedDate,
+                      driverId: selectedDriverId,
                     );
                 if (success && mounted) {
                   messenger.showSnackBar(const SnackBar(content: Text('Trip created!')));
