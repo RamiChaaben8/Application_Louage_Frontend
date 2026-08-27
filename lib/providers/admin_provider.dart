@@ -259,6 +259,22 @@ class AdminProvider extends ChangeNotifier {
     return success;
   }
 
+  Future<bool> bookOfflineTicket(int tripId, String passengerName, String token) async {
+    _setLoading(true);
+    final success = await _adminService.bookOfflineTicket(
+      tripId: tripId,
+      passengerName: passengerName,
+      token: token,
+    );
+    if (success) {
+      await fetchTrips();
+    } else {
+      error = 'Failed to book offline ticket';
+    }
+    _setLoading(false);
+    return success;
+  }
+
   void _setLoading(bool value) {
     isLoading = value;
     notifyListeners();

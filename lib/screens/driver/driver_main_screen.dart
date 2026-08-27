@@ -503,13 +503,39 @@ class _DriverMainScreenState extends State<DriverMainScreen> {
               title: Text('${trip.startStation?.city ?? ''} \u2192 ${trip.endStation?.city ?? ''}', style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.access_time_rounded, size: 12, color: Colors.grey.shade400),
-                    const SizedBox(width: 4),
-                    Text(
-                      '${trip.departureTime.hour.toString().padLeft(2, '0')}:${trip.departureTime.minute.toString().padLeft(2, '0')}',
-                      style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                    Row(
+                      children: [
+                        Icon(Icons.access_time_rounded, size: 12, color: Colors.grey.shade400),
+                        const SizedBox(width: 4),
+                        Text(
+                          '${trip.departureTime.hour.toString().padLeft(2, '0')}:${trip.departureTime.minute.toString().padLeft(2, '0')}',
+                          style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4)),
+                          child: const Text('50 TND', style: TextStyle(fontSize: 10, color: Colors.green, fontWeight: FontWeight.bold)),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+                          child: Text(
+                            dp.assignedVehicle != null 
+                              ? '${(dp.assignedVehicle!.capacity - trip.passengerNames.length).clamp(0, 999)} Seats Left' 
+                              : 'No Vehicle', 
+                            style: const TextStyle(fontSize: 10, color: Colors.blue, fontWeight: FontWeight.bold)
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

@@ -331,6 +331,25 @@ class AdminService {
     }
   }
 
+  Future<bool> bookOfflineTicket({
+    required int tripId,
+    required String passengerName,
+    required String token,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConstants.baseUrl}/Tickets/buy-offline?tripId=$tripId&passengerName=${Uri.encodeComponent(passengerName)}'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+      );
+      return response.statusCode == 200 || response.statusCode == 201;
+    } catch (e) {
+      return false;
+    }
+  }
+
   String _extractErrorMessage(http.Response response) {
     try {
       final decoded = jsonDecode(response.body);

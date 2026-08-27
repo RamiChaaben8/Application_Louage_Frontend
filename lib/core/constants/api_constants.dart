@@ -14,6 +14,11 @@ class ApiConstants {
     try {
       if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
         return 'http://localhost:$port/api';
+      } else if (Platform.isAndroid) {
+        // 10.0.2.2 is the special alias to your host loopback interface (127.0.0.1) on the Android emulator
+        return 'http://10.0.2.2:$port/api';
+      } else if (Platform.isIOS) {
+        return 'http://localhost:$port/api';
       }
     } catch (_) {}
     return 'http://$localIp:$port/api';

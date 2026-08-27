@@ -19,6 +19,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   int _currentIndex = 0;
   String _userSearchQuery = '';
   String _userRoleFilter = 'All';
+  bool _showTripHistory = false;
+  int? _filterStartStationId;
+  int? _filterEndStationId;
 
   @override
   void initState() {
@@ -44,6 +47,8 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
         break;
       case 3:
         adminProvider.fetchTrips();
+        adminProvider.fetchVehicles();
+        adminProvider.fetchStations();
         break;
     }
   }
@@ -711,78 +716,296 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
 
   // 4. TRIPS TAB
   Widget _buildTripsTab(AdminProvider adminProvider) {
-    final trips = adminProvider.trips;
+    var trips = List<Trip>.from(adminProvider.trips);
 
-    if (trips.isEmpty) {
-      return const Center(child: Text('No trips available.'));
+    if (!_showTripHistory) {
+      trips = trips.where((t) => t.status == TripStatus.pending).toList();
+    }
+    
+    if (_filterStartStationId != null) {
+      trips = trips.where((t) => t.startStationId == _filterStartStationId).toList();
+    }
+    
+    if (_filterEndStationId != null) {
+      trips = trips.where((t) => t.endStationId == _filterEndStationId).toList();
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: trips.length,
-      itemBuilder: (context, index) {
-        final trip = trips[index];
-        final start = trip.startStation?.name ?? 'Station #${trip.startStationId}';
-        final end = trip.endStation?.name ?? 'Station #${trip.endStationId}';
-        final timeStr = '${trip.departureTime.day}/${trip.departureTime.month}/${trip.departureTime.year} ${trip.departureTime.hour.toString().padLeft(2, '0')}:${trip.departureTime.minute.toString().padLeft(2, '0')}';
+    trips.sort((a, b) => a.departureTime.compareTo(b.departureTime));
+    
+    final stations = adminProvider.stations;
 
-        return Card(
-          elevation: 1,
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ExpansionTile(
-            leading: const CircleAvatar(
-              backgroundColor: Colors.indigo,
-              child: Icon(Icons.route, color: Colors.white),
-            ),
-            title: Text('$start -> $end', style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('Departure: $timeStr'),
-            trailing: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                if (trip.status == TripStatus.started)
-                  const Icon(Icons.play_circle_fill, color: Colors.green),
-                if (trip.status == TripStatus.finished)
-                  const Icon(Icons.check_circle, color: Colors.grey),
-                IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.red),
-                  onPressed: () => _confirmDeleteTrip(trip),
-                ),
-              ],
-            ),
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+          child: Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Row(
-                  children: [
-                    if (trip.status == TripStatus.pending)
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => _confirmStartTripAdmin(trip),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-                          child: const Text('Start Trip'),
-                        ),
-                      ),
-                    if (trip.status == TripStatus.started)
-                      Expanded(
-                        child: ElevatedButton(
-                          onPressed: () => adminProvider.updateTripStatus(trip.id, TripStatus.finished, _token),
-                          style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
-                          child: const Text('Finish Trip'),
-                        ),
-                      ),
-                    if (trip.status == TripStatus.finished)
-                      const Expanded(
-                        child: Center(child: Text('Trip Finished', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
-                      ),
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(labelText: 'Start Station', isDense: true),
+                  value: _filterStartStationId,
+                  items: [
+                    const DropdownMenuItem<int>(value: null, child: Text('All')),
+                    ...stations.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))),
                   ],
+                  onChanged: (val) => setState(() => _filterStartStationId = val),
                 ),
-              )
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  decoration: const InputDecoration(labelText: 'End Station', isDense: true),
+                  value: _filterEndStationId,
+                  items: [
+                    const DropdownMenuItem<int>(value: null, child: Text('All')),
+                    ...stations.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))),
+                  ],
+                  onChanged: (val) => setState(() => _filterEndStationId = val),
+                ),
+              ),
             ],
           ),
-        );
-      },
+        ),
+        CheckboxListTile(
+          title: const Text('Show Trip History', style: TextStyle(fontWeight: FontWeight.bold)),
+          value: _showTripHistory,
+          onChanged: (val) {
+            setState(() {
+              _showTripHistory = val ?? false;
+            });
+          },
+        ),
+        Expanded(
+          child: trips.isEmpty
+              ? const Center(child: Text('No trips available.'))
+              : ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemCount: trips.length,
+                  itemBuilder: (context, index) {
+                    final trip = trips[index];
+                    final start = trip.startStation?.name ?? 'Station #${trip.startStationId}';
+                    final end = trip.endStation?.name ?? 'Station #${trip.endStationId}';
+                    final timeStr = '${trip.departureTime.day}/${trip.departureTime.month}/${trip.departureTime.year} ${trip.departureTime.hour.toString().padLeft(2, '0')}:${trip.departureTime.minute.toString().padLeft(2, '0')}';
+
+                    int capacity = 0;
+                    String matricul = 'No Vehicle';
+                    if (trip.driverId != null) {
+                      try {
+                        final v = adminProvider.vehicles.firstWhere((v) => v.driverId == trip.driverId);
+                        capacity = v.capacity;
+                        matricul = v.plate;
+                      } catch (_) {}
+                    }
+                    final booked = trip.passengerNames.length;
+                    final available = capacity > 0 ? (capacity - booked) : 0;
+                    
+                    final driverStr = trip.driverName?.isNotEmpty == true ? trip.driverName! : 'Unknown Driver';
+                    final grasName = '$driverStr - $matricul';
+
+                    return Card(
+                      elevation: 1,
+                      margin: const EdgeInsets.only(bottom: 8),
+                      child: ExpansionTile(
+                        leading: const CircleAvatar(
+                          backgroundColor: Colors.indigo,
+                          child: Icon(Icons.route, color: Colors.white),
+                        ),
+                        title: Text(grasName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                        subtitle: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const SizedBox(height: 4),
+                            Text('Route: $start \u2192 $end', style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.indigo)),
+                            const SizedBox(height: 2),
+                            Text('Departure: $timeStr'),
+                            const SizedBox(height: 4),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade200)),
+                                  child: const Text('Price: 50 TND', style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
+                                ),
+                                const SizedBox(width: 8),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.blue.shade200)),
+                                  child: Text(capacity > 0 ? '$available / $capacity Seats' : 'No Vehicle', style: const TextStyle(fontSize: 12, color: Colors.blue, fontWeight: FontWeight.bold)),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (trip.status == TripStatus.started)
+                              const Icon(Icons.play_circle_fill, color: Colors.green),
+                            if (trip.status == TripStatus.finished)
+                              const Icon(Icons.check_circle, color: Colors.grey),
+                            IconButton(
+                              icon: const Icon(Icons.delete_outline, color: Colors.red),
+                              onPressed: () => _confirmDeleteTrip(trip),
+                            ),
+                          ],
+                        ),
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.all(16.0),
+                            child: Row(
+                              children: [
+                                if (trip.status == TripStatus.pending) ...[
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () => _confirmStartTripAdmin(trip),
+                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
+                                      child: const Text('Start Trip'),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () => _showBookTicketDialog(trip, adminProvider),
+                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+                                      child: const Text('Book Ticket'),
+                                    ),
+                                  ),
+                                ],
+                                if (trip.status == TripStatus.started)
+                                  Expanded(
+                                    child: ElevatedButton(
+                                      onPressed: () => adminProvider.updateTripStatus(trip.id, TripStatus.finished, _token),
+                                      style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white),
+                                      child: const Text('Finish Trip'),
+                                    ),
+                                  ),
+                                if (trip.status == TripStatus.finished)
+                                  const Expanded(
+                                    child: Center(child: Text('Trip Finished', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold))),
+                                  ),
+                              ],
+                            ),
+                          )
+                        ],
+                      ),
+                    );
+                  },
+                ),
+        ),
+      ],
     );
   }
+
+  void _showBookTicketDialog(Trip trip, AdminProvider adminProvider) {
+    final nameCtrl = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Book Ticket'),
+        content: TextField(
+          controller: nameCtrl,
+          decoration: const InputDecoration(labelText: 'Passenger Name'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameCtrl.text.trim().isEmpty) return;
+              final passenger = nameCtrl.text.trim();
+              Navigator.pop(ctx);
+              final success = await adminProvider.bookOfflineTicket(trip.id, passenger, _token);
+              if (success && mounted) {
+                _printTicket(trip, passenger, adminProvider);
+              } else if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Failed to book ticket on server.')));
+              }
+            },
+            child: const Text('Book & Print'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _printTicket(Trip trip, String passengerName, AdminProvider adminProvider) {
+    if (adminProvider.vehicles.isEmpty) {
+      adminProvider.fetchVehicles().then((_) {
+        if (!mounted) return;
+        _showPrintedTicketDialog(trip, passengerName, adminProvider);
+      });
+    } else {
+      _showPrintedTicketDialog(trip, passengerName, adminProvider);
+    }
+  }
+
+  void _showPrintedTicketDialog(Trip trip, String passengerName, AdminProvider adminProvider) {
+    String matricul = 'Not Assigned';
+    if (trip.driverId != null) {
+      try {
+        final vehicle = adminProvider.vehicles.firstWhere((v) => v.driverId == trip.driverId);
+        matricul = vehicle.plate;
+      } catch (_) {}
+    }
+    
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        contentPadding: EdgeInsets.zero,
+        content: Container(
+          width: 300,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.black, width: 2),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.directions_bus, size: 40, color: Colors.indigo),
+              const SizedBox(height: 8),
+              const Text('LOUAGE TICKET', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 20, letterSpacing: 2)),
+              const Divider(color: Colors.black, thickness: 1.5, height: 24),
+              _ticketRow('Passenger', passengerName),
+              _ticketRow('From', trip.startStation?.name ?? 'Unknown'),
+              _ticketRow('To', trip.endStation?.name ?? 'Unknown'),
+              _ticketRow('Vehicle Matricul', matricul),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                decoration: BoxDecoration(color: Colors.indigo.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
+                child: const Text('Price: 50 TND', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo)),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(ctx),
+            icon: const Icon(Icons.print),
+            label: const Text('Print'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _ticketRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(flex: 2, child: Text('$label:', style: const TextStyle(fontWeight: FontWeight.w600, color: Colors.grey))),
+          Expanded(flex: 3, child: Text(value, style: const TextStyle(fontWeight: FontWeight.bold))),
+        ],
+      ),
+    );
+  }
+
 
   void _confirmStartTripAdmin(Trip trip) {
     showDialog(
