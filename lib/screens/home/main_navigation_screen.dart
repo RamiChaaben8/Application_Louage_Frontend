@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../core/l10n/app_localizations.dart';
+import '../../core/theme/app_theme.dart';
 import '../../providers/auth_provider.dart';
+import '../../providers/locale_provider.dart';
 import '../auth/login_screen.dart';
 import '../trips/trip_search_screen.dart';
 import '../tickets/my_tickets_screen.dart';
@@ -20,69 +23,133 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
     MyTicketsScreen(),
   ];
 
-  final List<String> _titles = const [
-    'Find Trips',
-    'My Tickets',
-  ];
+  void _showLogoutDialog() async {
+    final l = AppLocalizations.of(context);
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(l.logoutConfirmTitle),
+        content: Text(l.logoutConfirmMsg),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l.cancel),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppTheme.danger,
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l.logout),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      await authProvider.logout();
+      if (!mounted) return;
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const LoginScreen()),
+      );
+    }
+  }
+
+  void _showLanguagePicker() {
+    final localeProvider = Provider.of<LocaleProvider>(context, listen: false);
+    final l = AppLocalizations.of(context);
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppTheme.divider,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              Padding(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+                child: Text(l.language,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16)),
+              ),
+              const SizedBox(height: 8),
+              ...LocaleProvider.options.map((opt) => ListTile(
+                    leading:
+                        Text(opt.flag, style: const TextStyle(fontSize: 24)),
+                    title: Text(opt.label),
+                    trailing: localeProvider.locale == opt.locale
+                        ? const Icon(Icons.check_circle, color: AppTheme.primary)
+                        : null,
+                    onTap: () {
+                      localeProvider.setLocale(opt.locale);
+                      Navigator.pop(ctx);
+                    },
+                  )),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final authProvider = Provider.of<AuthProvider>(context);
     final user = authProvider.currentUser;
 
+    final List<String> titles = [l.findTrips, l.myTickets];
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(_titles[_currentIndex]),
-        centerTitle: false,
+        title: Text(titles[_currentIndex]),
         actions: [
           if (user != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8.0),
-              child: Chip(
-                avatar: const CircleAvatar(
-                  backgroundColor: Colors.white,
-                  child: Icon(Icons.person, size: 16, color: Colors.blue),
-                ),
-                label: Text(
-                  '${user.firstName} (${user.userType})',
-                  style: const TextStyle(fontSize: 12),
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: Center(
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    user.firstName,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500),
+                  ),
                 ),
               ),
             ),
           IconButton(
-            icon: const Icon(Icons.logout),
-            tooltip: 'Logout',
-            onPressed: () async {
-              final confirm = await showDialog<bool>(
-                context: context,
-                builder: (ctx) => AlertDialog(
-                  title: const Text('Logout'),
-                  content: const Text('Are you sure you want to log out?'),
-                  actions: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(ctx, false),
-                      child: const Text('Cancel'),
-                    ),
-                    ElevatedButton(
-                      onPressed: () => Navigator.pop(ctx, true),
-                      style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.red,
-                          foregroundColor: Colors.white),
-                      child: const Text('Logout'),
-                    ),
-                  ],
-                ),
-              );
-
-              if (confirm == true) {
-                await authProvider.logout();
-                if (!context.mounted) return;
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginScreen()),
-                );
-              }
-            },
+            icon: const Icon(Icons.language_outlined),
+            tooltip: l.language,
+            onPressed: _showLanguagePicker,
+          ),
+          IconButton(
+            icon: const Icon(Icons.logout_rounded),
+            tooltip: l.logout,
+            onPressed: _showLogoutDialog,
           ),
         ],
       ),
@@ -90,21 +157,26 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
         index: _currentIndex,
         children: _screens,
       ),
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: _currentIndex,
-        onDestinationSelected: (index) => setState(() => _currentIndex = index),
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.search),
-            selectedIcon: Icon(Icons.search, color: Colors.blue),
-            label: 'Trips',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.confirmation_number_outlined),
-            selectedIcon: Icon(Icons.confirmation_number, color: Colors.blue),
-            label: 'My Tickets',
-          ),
-        ],
+      bottomNavigationBar: Container(
+        decoration: const BoxDecoration(
+          border: Border(top: BorderSide(color: AppTheme.divider)),
+        ),
+        child: NavigationBar(
+          selectedIndex: _currentIndex,
+          onDestinationSelected: (i) => setState(() => _currentIndex = i),
+          destinations: [
+            NavigationDestination(
+              icon: const Icon(Icons.search_rounded),
+              selectedIcon: const Icon(Icons.search_rounded),
+              label: l.trips,
+            ),
+            NavigationDestination(
+              icon: const Icon(Icons.confirmation_number_outlined),
+              selectedIcon: const Icon(Icons.confirmation_number_rounded),
+              label: l.myTickets,
+            ),
+          ],
+        ),
       ),
     );
   }

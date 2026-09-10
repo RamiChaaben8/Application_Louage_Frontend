@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import '../../core/constants/api_constants.dart';
+import '../../core/l10n/app_localizations.dart';
+import '../../core/theme/app_theme.dart';
 import '../../data/models/station_model.dart';
 import '../../providers/auth_provider.dart';
 import '../../widgets/station_picker.dart';
@@ -28,9 +30,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
   final _plateController = TextEditingController();
   final _capacityController = TextEditingController(text: '8');
 
-  // Role selection: 'customer' or 'driver'
+  bool _obscurePassword = true;
   String _selectedRole = 'customer';
-
   bool _isLoadingStations = false;
   List<Station> _stations = [];
   final List<int> _selectedStationIds = [];
@@ -74,386 +75,364 @@ class _SignUpScreenState extends State<SignUpScreen> {
   int _parsePhoneNumber(String raw) {
     final cleaned = raw.replaceAll(RegExp(r'\D'), '');
     if (cleaned.isEmpty) return 0;
-    // Take the last 8 digits if prefixed with country code to guarantee it fits safely in 32-bit int
-    final truncated = cleaned.length > 8 ? cleaned.substring(cleaned.length - 8) : cleaned;
+    final truncated =
+        cleaned.length > 8 ? cleaned.substring(cleaned.length - 8) : cleaned;
     return int.tryParse(truncated) ?? 0;
   }
 
   void _register() async {
-    if (_formKey.currentState!.validate()) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+    if (!_formKey.currentState!.validate()) return;
+    final l = AppLocalizations.of(context);
+    final authProvider = Provider.of<AuthProvider>(context, listen: false);
 
-      final phone = _parsePhoneNumber(_phoneController.text);
-      if (phone <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please enter a valid phone number (at least 8 digits)'),
-            backgroundColor: Colors.red,
-          ),
-        );
+    final phone = _parsePhoneNumber(_phoneController.text);
+    if (phone <= 0) {
+      _showError(l.validPhone);
+      return;
+    }
+
+    bool success = false;
+
+    if (_selectedRole == 'driver') {
+      final plate = _plateController.text.trim().toUpperCase();
+      final license = _licenseController.text.trim();
+      final capacity = int.tryParse(_capacityController.text.trim()) ?? 8;
+
+      if (plate.isEmpty || license.isEmpty) {
+        _showError(l.provideLicenseAndPlate);
+        return;
+      }
+      if (_selectedStationIds.length < 2) {
+        _showError(l.selectMin2Stations);
         return;
       }
 
-      bool success = false;
-
-      if (_selectedRole == 'driver') {
-        final plate = _plateController.text.trim().toUpperCase();
-        final license = _licenseController.text.trim();
-        final capacity = int.tryParse(_capacityController.text.trim()) ?? 8;
-
-        if (plate.isEmpty || license.isEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please provide both driver license and vehicle plate'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          return;
-        }
-
-        if (_selectedStationIds.length < 2) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Please select at least 2 stations your louage goes to'),
-              backgroundColor: Colors.red,
-            ),
-          );
-          return;
-        }
-
-        success = await authProvider.registerDriver(
-          firstName: _firstNameController.text.trim(),
-          lastName: _lastNameController.text.trim(),
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-          phoneNum: phone,
-          licenseNumber: license,
-          plate: plate,
-          capacity: capacity,
-          stationIds: _selectedStationIds,
-        );
-      } else {
-        success = await authProvider.registerCustomer(
-          firstName: _firstNameController.text.trim(),
-          lastName: _lastNameController.text.trim(),
-          email: _emailController.text.trim(),
-          password: _passwordController.text.trim(),
-          phoneNum: phone,
-        );
-      }
-
-      if (!mounted) return;
-
-      if (success) {
-        if (authProvider.isDriver) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const DriverMainScreen()),
-          );
-        } else {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const MainNavigationScreen()),
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(authProvider.error ?? 'Registration failed.'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      success = await authProvider.registerDriver(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        phoneNum: phone,
+        licenseNumber: license,
+        plate: plate,
+        capacity: capacity,
+        stationIds: _selectedStationIds,
+      );
+    } else {
+      success = await authProvider.registerCustomer(
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        email: _emailController.text.trim(),
+        password: _passwordController.text.trim(),
+        phoneNum: phone,
+      );
     }
+
+    if (!mounted) return;
+
+    if (success) {
+      Widget dest = authProvider.isDriver
+          ? const DriverMainScreen()
+          : const MainNavigationScreen();
+      Navigator.pushReplacement(
+          context, MaterialPageRoute(builder: (_) => dest));
+    } else {
+      _showError(authProvider.error ?? l.registrationFailed);
+    }
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(msg),
+      backgroundColor: AppTheme.danger,
+    ));
   }
 
   @override
   Widget build(BuildContext context) {
+    final l = AppLocalizations.of(context);
     final authProvider = Provider.of<AuthProvider>(context);
+    final isDriver = _selectedRole == 'driver';
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Account'),
-        centerTitle: true,
+        title: Text(l.createAccount),
+        leading: BackButton(
+          onPressed: () => Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => const LoginScreen()),
+          ),
+        ),
       ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24.0),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Role Selection Segmented Control
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.all(20),
+        child: Form(
+          key: _formKey,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Role selector
+              Container(
+                decoration: BoxDecoration(
+                  color: AppTheme.divider,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  children: [
+                    _RoleTab(
+                      label: l.passenger,
+                      icon: Icons.person_rounded,
+                      selected: !isDriver,
+                      onTap: () => setState(() => _selectedRole = 'customer'),
+                    ),
+                    _RoleTab(
+                      label: l.driver,
+                      icon: Icons.directions_car_rounded,
+                      selected: isDriver,
+                      onTap: () => setState(() => _selectedRole = 'driver'),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Driver notice
+              if (isDriver)
                 Container(
-                  padding: const EdgeInsets.all(4),
+                  margin: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: const Color(0xFFFFFBEB),
                     borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: const Color(0xFFFCD34D)),
                   ),
                   child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      const Icon(Icons.info_outline,
+                          color: AppTheme.warning, size: 20),
+                      const SizedBox(width: 10),
                       Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedRole = 'customer';
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: _selectedRole == 'customer' ? Colors.blue : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.person,
-                                  size: 18,
-                                  color: _selectedRole == 'customer' ? Colors.white : Colors.black87,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Passenger',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: _selectedRole == 'customer' ? Colors.white : Colors.black87,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() {
-                              _selectedRole = 'driver';
-                            });
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(vertical: 12),
-                            decoration: BoxDecoration(
-                              color: _selectedRole == 'driver' ? Colors.blue : Colors.transparent,
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.directions_car,
-                                  size: 18,
-                                  color: _selectedRole == 'driver' ? Colors.white : Colors.black87,
-                                ),
-                                const SizedBox(width: 8),
-                                Text(
-                                  'Driver',
-                                  style: TextStyle(
-                                    fontWeight: FontWeight.bold,
-                                    color: _selectedRole == 'driver' ? Colors.white : Colors.black87,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
+                        child: Text(l.driverNotice,
+                            style: const TextStyle(
+                                fontSize: 13, color: AppTheme.textPrimary)),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 16),
 
-                // Driver Notice Card
-                if (_selectedRole == 'driver')
-                  Container(
-                    margin: const EdgeInsets.only(bottom: 16),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.amber.shade300),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: Colors.amber.shade800),
-                        const SizedBox(width: 10),
-                        const Expanded(
-                          child: Text(
-                            'Driver accounts require Admin verification and vehicle assignment before starting work.',
-                            style: TextStyle(fontSize: 12, color: Colors.black87),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+              // Personal info
+              _SectionHeader(label: l.firstName),
+              TextFormField(
+                controller: _firstNameController,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.person_outline),
+                  labelText: l.firstName,
+                ),
+                validator: (v) => v!.isEmpty ? l.enterFirstName : null,
+              ),
+              const SizedBox(height: 14),
+              _SectionHeader(label: l.lastName),
+              TextFormField(
+                controller: _lastNameController,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.person_outline),
+                  labelText: l.lastName,
+                ),
+                validator: (v) => v!.isEmpty ? l.enterLastName : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _emailController,
+                keyboardType: TextInputType.emailAddress,
+                textDirection: TextDirection.ltr,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.email_outlined),
+                  labelText: l.email,
+                ),
+                validator: (v) => v!.isEmpty ? l.enterEmail : null,
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: _phoneController,
+                keyboardType: TextInputType.phone,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.phone_outlined),
+                  labelText: l.phoneNumber,
+                ),
+                validator: (v) => v!.isEmpty ? l.enterPhone : null,
+              ),
+              const SizedBox(height: 14),
 
+              // Driver-only fields
+              if (isDriver) ...[
                 TextFormField(
-                  controller: _firstNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'First Name',
-                    prefixIcon: Icon(Icons.person),
-                    border: OutlineInputBorder(),
+                  controller: _licenseController,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.badge_outlined),
+                    labelText: l.licenseNumber,
                   ),
-                  validator: (v) => v!.isEmpty ? 'Enter your first name' : null,
+                  validator: (v) => v!.isEmpty ? l.enterLicense : null,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 20),
+                _SubSectionHeader(
+                    icon: Icons.directions_car_outlined, label: l.vehicleInfo),
+                const SizedBox(height: 12),
                 TextFormField(
-                  controller: _lastNameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Last Name',
-                    prefixIcon: Icon(Icons.person_outline),
-                    border: OutlineInputBorder(),
+                  controller: _plateController,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.pin_outlined),
+                    labelText: l.vehiclePlate,
                   ),
-                  validator: (v) => v!.isEmpty ? 'Enter your last name' : null,
+                  validator: (v) => v!.isEmpty ? l.enterPlate : null,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
                 TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email),
-                    border: OutlineInputBorder(),
+                  controller: _capacityController,
+                  keyboardType: TextInputType.number,
+                  decoration: InputDecoration(
+                    prefixIcon: const Icon(Icons.event_seat_outlined),
+                    labelText: l.seatingCapacity,
                   ),
-                  validator: (v) => v!.isEmpty ? 'Enter your email' : null,
+                  validator: (v) =>
+                      (int.tryParse(v ?? '') == null ||
+                              int.parse(v!) < 2)
+                          ? l.capacityMin
+                          : null,
                 ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
-                  decoration: const InputDecoration(
-                    labelText: 'Phone Number',
-                    prefixIcon: Icon(Icons.phone),
-                    border: OutlineInputBorder(),
+                const SizedBox(height: 20),
+                _SubSectionHeader(
+                    icon: Icons.map_outlined, label: l.destinations),
+                const SizedBox(height: 12),
+                if (_isLoadingStations)
+                  const Center(child: CircularProgressIndicator())
+                else
+                  StationPicker(
+                    stations: _stations,
+                    selectedIds: _selectedStationIds,
+                    onChanged: () => setState(() {}),
                   ),
-                  validator: (v) => v!.isEmpty ? 'Enter your phone number' : null,
-                ),
-                const SizedBox(height: 16),
-
-                // Driver-only fields
-                if (_selectedRole == 'driver') ...[
-                  TextFormField(
-                    controller: _licenseController,
-                    decoration: const InputDecoration(
-                      labelText: 'Driver License Number',
-                      prefixIcon: Icon(Icons.badge),
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) => v!.isEmpty ? 'Enter your license number' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  // Vehicle section header
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.directions_car, size: 18, color: Colors.blueGrey),
-                        SizedBox(width: 8),
-                        Text(
-                          'Vehicle Information',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Colors.blueGrey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  TextFormField(
-                    controller: _plateController,
-                    textCapitalization: TextCapitalization.characters,
-                    decoration: const InputDecoration(
-                      labelText: 'Vehicle Plate (e.g. 123 TUN 4567)',
-                      prefixIcon: Icon(Icons.pin),
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) => v!.isEmpty ? 'Enter vehicle plate number' : null,
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _capacityController,
-                    keyboardType: TextInputType.number,
-                    decoration: const InputDecoration(
-                      labelText: 'Seating Capacity',
-                      prefixIcon: Icon(Icons.event_seat),
-                      border: OutlineInputBorder(),
-                    ),
-                    validator: (v) =>
-                        int.tryParse(v ?? '') == null || int.parse(v!) < 2
-                            ? 'Capacity must be at least 2 seats'
-                            : null,
-                  ),
-                  const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
-                    child: const Row(
-                      children: [
-                        Icon(Icons.map, size: 18, color: Colors.blueGrey),
-                        SizedBox(width: 8),
-                        Text(
-                          'Destinations (Min 2 required)',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 14,
-                            color: Colors.blueGrey,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  if (_isLoadingStations)
-                    const Center(child: CircularProgressIndicator())
-                  else
-                    StationPicker(
-                      stations: _stations,
-                      selectedIds: _selectedStationIds,
-                      onChanged: () => setState(() {}),
-                    ),
-                  const SizedBox(height: 16),
-                ],
-
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: Icon(Icons.lock),
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (v) => v!.length < 6 ? 'Password must be at least 6 characters' : null,
-                ),
-                const SizedBox(height: 24),
-                authProvider.isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(vertical: 16),
-                        ),
-                        onPressed: _register,
-                        child: Text(
-                          _selectedRole == 'driver' ? 'Register as Driver' : 'Sign Up as Passenger',
-                          style: const TextStyle(fontSize: 18),
-                        ),
-                      ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const LoginScreen()),
-                    );
-                  },
-                  child: const Text('Already have an account? Log In'),
-                ),
+                const SizedBox(height: 14),
               ],
-            ),
+
+              TextFormField(
+                controller: _passwordController,
+                obscureText: _obscurePassword,
+                decoration: InputDecoration(
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  labelText: l.password,
+                  suffixIcon: IconButton(
+                    icon: Icon(_obscurePassword
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                  ),
+                ),
+                validator: (v) =>
+                    v!.length < 6 ? l.passwordMin : null,
+              ),
+              const SizedBox(height: 28),
+
+              authProvider.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : ElevatedButton(
+                      onPressed: _register,
+                      child: Text(
+                        isDriver ? l.registerAsDriver : l.signUpAsPassenger,
+                        style: const TextStyle(fontSize: 16),
+                      ),
+                    ),
+              const SizedBox(height: 14),
+              TextButton(
+                onPressed: () => Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                ),
+                child: Text(l.haveAccount),
+              ),
+            ],
           ),
         ),
       ),
+    );
+  }
+}
+
+class _RoleTab extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _RoleTab({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: selected ? AppTheme.primary : Colors.transparent,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(icon,
+                  size: 18,
+                  color: selected ? Colors.white : AppTheme.textSecondary),
+              const SizedBox(width: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  color: selected ? Colors.white : AppTheme.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  final String label;
+  const _SectionHeader({required this.label});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+class _SubSectionHeader extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _SubSectionHeader({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppTheme.textSecondary),
+        const SizedBox(width: 8),
+        Text(label,
+            style: const TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+                color: AppTheme.textSecondary)),
+      ],
     );
   }
 }
