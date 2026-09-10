@@ -5,6 +5,8 @@ import '../../providers/trip_provider.dart';
 import '../../providers/ticket_provider.dart';
 import '../../data/models/station_model.dart';
 import '../../data/models/trip_model.dart';
+import '../../data/models/enums.dart';
+import '../../core/utils/price_utils.dart';
 
 class TripSearchScreen extends StatefulWidget {
   const TripSearchScreen({super.key});
@@ -14,13 +16,20 @@ class TripSearchScreen extends StatefulWidget {
 }
 
 class _TripSearchScreenState extends State<TripSearchScreen> {
+  bool _hasSearched = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final tripProvider = Provider.of<TripProvider>(context, listen: false);
-      tripProvider.loadStations();
-      tripProvider.searchTrips();
+      // Load stations for the search form
+      Provider.of<TripProvider>(context, listen: false).loadStations();
+      // Pre-load the customer's tickets so Book buttons show correct state
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final customerId = authProvider.currentUser?.userId ?? 0;
+      if (customerId > 0) {
+        Provider.of<TicketProvider>(context, listen: false).loadMyTickets(customerId);
+      }
     });
   }
 
@@ -36,6 +45,12 @@ class _TripSearchScreenState extends State<TripSearchScreen> {
       return;
     }
 
+    final fromCity = trip.startStation?.city ?? '';
+    final toCity = trip.endStation?.city ?? '';
+    final priceLabel = formatLouagePrice(fromCity, toCity,
+        fromStation: trip.startStation?.name ?? '',
+        toStation: trip.endStation?.name ?? '');
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -49,7 +64,15 @@ class _TripSearchScreenState extends State<TripSearchScreen> {
             const SizedBox(height: 8),
             Text('Departure: ${_formatDateTime(trip.departureTime)}'),
             const SizedBox(height: 8),
-            const Text('Price: 50.00 TND', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue)),
+            Text(
+              'Price: $priceLabel',
+              style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Official tariff (A/C louage, Dec 2022)',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            ),
           ],
         ),
         actions: [
@@ -75,6 +98,8 @@ class _TripSearchScreenState extends State<TripSearchScreen> {
     if (!mounted) return;
 
     if (success) {
+      // Reload My Tickets so the new ticket appears immediately
+      ticketProvider.loadMyTickets(customerId);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Ticket booked successfully! Check My Tickets.'),
@@ -98,12 +123,19 @@ class _TripSearchScreenState extends State<TripSearchScreen> {
   @override
   Widget build(BuildContext context) {
     final tripProvider = Provider.of<TripProvider>(context);
+    final ticketProvider = Provider.of<TicketProvider>(context);
+
+    // Build a set of tripIds the current customer already has an active ticket for
+    final bookedTripIds = ticketProvider.myTickets
+        .where((t) => t.status == TicketStatus.active)
+        .map((t) => t.tripId)
+        .toSet();
 
     return Scaffold(
       body: RefreshIndicator(
         onRefresh: () async {
           await tripProvider.loadStations();
-          await tripProvider.searchTrips();
+          if (_hasSearched) await tripProvider.searchTrips();
         },
         child: CustomScrollView(
           slivers: [
@@ -123,42 +155,72 @@ class _TripSearchScreenState extends State<TripSearchScreen> {
                           style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                         const SizedBox(height: 16),
-                        // Departure Station Dropdown
+
+                        // ── Departure: city then station ──────────
+                        DropdownButtonFormField<String>(
+                          initialValue: tripProvider.selectedStartCity,
+                          decoration: const InputDecoration(
+                            labelText: 'Departure City',
+                            prefixIcon: Icon(Icons.location_city, color: Colors.blue),
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String>(value: null, child: Text('Any City')),
+                            ...tripProvider.cities.map(
+                              (c) => DropdownMenuItem(value: c, child: Text(c)),
+                            ),
+                          ],
+                          onChanged: (v) => tripProvider.setStartCity(v),
+                        ),
+                        const SizedBox(height: 12),
                         DropdownButtonFormField<Station>(
-                          value: tripProvider.selectedStartStation,
+                          initialValue: tripProvider.selectedStartStation,
                           decoration: const InputDecoration(
                             labelText: 'Departure Station',
                             prefixIcon: Icon(Icons.trip_origin, color: Colors.blue),
                             border: OutlineInputBorder(),
                           ),
-                          items: tripProvider.stations.map((s) {
-                            return DropdownMenuItem(
-                              value: s,
-                              child: Text('${s.city} - ${s.name}'),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            tripProvider.setStartStation(val);
-                          },
+                          items: [
+                            const DropdownMenuItem<Station>(value: null, child: Text('Any Station')),
+                            ...tripProvider
+                                .stationsForCity(tripProvider.selectedStartCity)
+                                .map((s) => DropdownMenuItem(value: s, child: Text(s.name))),
+                          ],
+                          onChanged: (val) => tripProvider.setStartStation(val),
                         ),
                         const SizedBox(height: 12),
-                        // Destination Station Dropdown
+
+                        // ── Destination: city then station ────────
+                        DropdownButtonFormField<String>(
+                          initialValue: tripProvider.selectedEndCity,
+                          decoration: const InputDecoration(
+                            labelText: 'Destination City',
+                            prefixIcon: Icon(Icons.location_city, color: Colors.red),
+                            border: OutlineInputBorder(),
+                          ),
+                          items: [
+                            const DropdownMenuItem<String>(value: null, child: Text('Any City')),
+                            ...tripProvider.cities.map(
+                              (c) => DropdownMenuItem(value: c, child: Text(c)),
+                            ),
+                          ],
+                          onChanged: (v) => tripProvider.setEndCity(v),
+                        ),
+                        const SizedBox(height: 12),
                         DropdownButtonFormField<Station>(
-                          value: tripProvider.selectedEndStation,
+                          initialValue: tripProvider.selectedEndStation,
                           decoration: const InputDecoration(
                             labelText: 'Destination Station',
                             prefixIcon: Icon(Icons.location_on, color: Colors.red),
                             border: OutlineInputBorder(),
                           ),
-                          items: tripProvider.stations.map((s) {
-                            return DropdownMenuItem(
-                              value: s,
-                              child: Text('${s.city} - ${s.name}'),
-                            );
-                          }).toList(),
-                          onChanged: (val) {
-                            tripProvider.setEndStation(val);
-                          },
+                          items: [
+                            const DropdownMenuItem<Station>(value: null, child: Text('Any Station')),
+                            ...tripProvider
+                                .stationsForCity(tripProvider.selectedEndCity)
+                                .map((s) => DropdownMenuItem(value: s, child: Text(s.name))),
+                          ],
+                          onChanged: (val) => tripProvider.setEndStation(val),
                         ),
                         const SizedBox(height: 12),
                         // Date Picker
@@ -214,6 +276,7 @@ class _TripSearchScreenState extends State<TripSearchScreen> {
                                 icon: const Icon(Icons.search),
                                 label: const Text('Search Trips'),
                                 onPressed: () {
+                                  setState(() => _hasSearched = true);
                                   tripProvider.searchTrips();
                                 },
                               ),
@@ -224,6 +287,7 @@ class _TripSearchScreenState extends State<TripSearchScreen> {
                                 padding: const EdgeInsets.symmetric(vertical: 14),
                               ),
                               onPressed: () {
+                                setState(() => _hasSearched = false);
                                 tripProvider.clearFilters();
                               },
                               child: const Text('Clear'),
@@ -240,6 +304,24 @@ class _TripSearchScreenState extends State<TripSearchScreen> {
               const SliverFillRemaining(
                 child: Center(child: CircularProgressIndicator()),
               )
+            else if (!_hasSearched)
+              SliverFillRemaining(
+                hasScrollBody: false,
+                child: Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.search, size: 64, color: Colors.grey.shade300),
+                      const SizedBox(height: 16),
+                      Text(
+                        'Select your departure and destination,\nthen tap Search.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
+                      ),
+                    ],
+                  ),
+                ),
+              )
             else if (tripProvider.trips.isEmpty)
               SliverFillRemaining(
                 hasScrollBody: false,
@@ -250,8 +332,9 @@ class _TripSearchScreenState extends State<TripSearchScreen> {
                       Icon(Icons.directions_car_outlined, size: 64, color: Colors.grey.shade400),
                       const SizedBox(height: 16),
                       Text(
-                        'No trips found for selected criteria.',
-                        style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                        'No trips found.\nTry different stations or date.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 15, color: Colors.grey.shade600),
                       ),
                     ],
                   ),
@@ -326,14 +409,61 @@ class _TripSearchScreenState extends State<TripSearchScreen> {
                                       ),
                                     ],
                                   ),
-                                  ElevatedButton(
-                                    onPressed: () => _bookTicket(trip),
-                                    style: ElevatedButton.styleFrom(
-                                      backgroundColor: Colors.blue,
-                                      foregroundColor: Colors.white,
-                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                                    ),
-                                    child: const Text('Book'),
+                                  Row(
+                                    children: [
+                                      // ── Price badge ──────────────────────────
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                                        decoration: BoxDecoration(
+                                          color: Colors.blue.shade50,
+                                          borderRadius: BorderRadius.circular(8),
+                                          border: Border.all(color: Colors.blue.shade100),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            Icon(Icons.sell_outlined, size: 14, color: Colors.blue.shade700),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              formatLouagePrice(
+                                                trip.startStation?.city ?? '',
+                                                trip.endStation?.city ?? '',
+                                                fromStation: trip.startStation?.name ?? '',
+                                                toStation: trip.endStation?.name ?? '',
+                                              ),
+                                              style: TextStyle(
+                                                fontSize: 13,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.blue.shade700,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 8),
+                                      ElevatedButton(
+                                        onPressed: bookedTripIds.contains(trip.id)
+                                            ? null
+                                            : () => _bookTicket(trip),
+                                        style: ElevatedButton.styleFrom(
+                                          backgroundColor: bookedTripIds.contains(trip.id)
+                                              ? Colors.grey.shade400
+                                              : Colors.blue,
+                                          foregroundColor: Colors.white,
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        child: Row(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            if (bookedTripIds.contains(trip.id))
+                                              const Icon(Icons.check_circle_outline, size: 16),
+                                            if (bookedTripIds.contains(trip.id))
+                                              const SizedBox(width: 4),
+                                            Text(bookedTripIds.contains(trip.id) ? 'Booked' : 'Book'),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                 ],
                               ),

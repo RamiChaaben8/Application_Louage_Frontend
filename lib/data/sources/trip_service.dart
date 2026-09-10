@@ -31,6 +31,7 @@ class TripService {
     int? endStationId,
     DateTime? date,
     int? driverId,
+    bool onlyAvailable = true,
   }) async {
     try {
       final queryParams = <String, String>{};
@@ -46,8 +47,9 @@ class TripService {
       if (driverId != null && driverId > 0) {
         queryParams['driverId'] = driverId.toString();
       }
+      queryParams['onlyAvailable'] = onlyAvailable.toString();
 
-      final uri = Uri.parse(ApiConstants.tripsEndpoint).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+      final uri = Uri.parse(ApiConstants.tripsEndpoint).replace(queryParameters: queryParams);
 
       print('[TripService] GET $uri');
       final response = await http.get(

@@ -1,6 +1,6 @@
 enum TicketStatus {
   active,
-  resale,
+  refunded,
   used,
   cancelled;
 

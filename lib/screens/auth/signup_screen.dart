@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import '../../core/constants/api_constants.dart';
 import '../../data/models/station_model.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/station_picker.dart';
 import '../home/main_navigation_screen.dart';
 import '../driver/driver_main_screen.dart';
 import 'login_screen.dart';
@@ -406,27 +407,11 @@ class _SignUpScreenState extends State<SignUpScreen> {
                   ),
                   if (_isLoadingStations)
                     const Center(child: CircularProgressIndicator())
-                  else if (_stations.isEmpty)
-                    const Text('No stations available.')
                   else
-                    Wrap(
-                      spacing: 8.0,
-                      children: _stations.map((station) {
-                        final isSelected = _selectedStationIds.contains(station.id);
-                        return FilterChip(
-                          label: Text(station.name),
-                          selected: isSelected,
-                          onSelected: (bool selected) {
-                            setState(() {
-                              if (selected) {
-                                _selectedStationIds.add(station.id);
-                              } else {
-                                _selectedStationIds.remove(station.id);
-                              }
-                            });
-                          },
-                        );
-                      }).toList(),
+                    StationPicker(
+                      stations: _stations,
+                      selectedIds: _selectedStationIds,
+                      onChanged: () => setState(() {}),
                     ),
                   const SizedBox(height: 16),
                 ],

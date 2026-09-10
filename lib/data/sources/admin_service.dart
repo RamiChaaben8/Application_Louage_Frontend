@@ -92,6 +92,49 @@ class AdminService {
     }
   }
 
+  Future<(AdminUser?, String?)> createDriver({
+    required String token,
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String password,
+    required int phoneNum,
+    required String licenseNumber,
+    required String plate,
+    required int capacity,
+    required List<int> stationIds,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse(ApiConstants.adminCreateDriverEndpoint),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer $token',
+        },
+        body: jsonEncode({
+          'firstName': firstName,
+          'lastName': lastName,
+          'email': email,
+          'password': password,
+          'phoneNum': phoneNum,
+          'licenseNumber': licenseNumber,
+          'plate': plate,
+          'capacity': capacity,
+          'stationIds': stationIds,
+        }),
+      );
+
+      if (response.statusCode == 200 || response.statusCode == 201) {
+        final data = jsonDecode(response.body);
+        return (AdminUser.fromJson(data), null);
+      } else {
+        return (null, _extractErrorMessage(response));
+      }
+    } catch (e) {
+      return (null, e.toString());
+    }
+  }
+
   Future<(AdminUser?, String?)> approveDriver(int id, String token) async {
     try {
       final response = await http.put(
@@ -259,7 +302,9 @@ class AdminService {
   // ─── Trips ──────────────────────────────────────────────────────────
   Future<List<Trip>> getAllTrips() async {
     try {
-      final response = await http.get(Uri.parse(ApiConstants.tripsEndpoint));
+      final response = await http.get(
+        Uri.parse('${ApiConstants.tripsEndpoint}?onlyAvailable=false'),
+      );
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         return data.map((json) => Trip.fromJson(json)).toList();

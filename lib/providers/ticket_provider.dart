@@ -6,16 +6,12 @@ class TicketProvider with ChangeNotifier {
   final TicketService _ticketService = TicketService();
 
   List<Ticket> _myTickets = [];
-  List<Ticket> _resaleTickets = [];
   bool _isLoadingMyTickets = false;
-  bool _isLoadingResale = false;
   bool _isActionLoading = false;
   String? _actionError;
 
   List<Ticket> get myTickets => _myTickets;
-  List<Ticket> get resaleTickets => _resaleTickets;
   bool get isLoadingMyTickets => _isLoadingMyTickets;
-  bool get isLoadingResale => _isLoadingResale;
   bool get isActionLoading => _isActionLoading;
   String? get actionError => _actionError;
 
@@ -26,16 +22,6 @@ class TicketProvider with ChangeNotifier {
     _myTickets = await _ticketService.getMyTickets(customerId: customerId);
 
     _isLoadingMyTickets = false;
-    notifyListeners();
-  }
-
-  Future<void> loadResaleTickets() async {
-    _isLoadingResale = true;
-    notifyListeners();
-
-    _resaleTickets = await _ticketService.getResaleTickets();
-
-    _isLoadingResale = false;
     notifyListeners();
   }
 
@@ -63,35 +49,7 @@ class TicketProvider with ChangeNotifier {
     return true;
   }
 
-  Future<bool> resellTicket({
-    required int ticketId,
-    required double resalePrice,
-    required int customerId,
-  }) async {
-    _isActionLoading = true;
-    _actionError = null;
-    notifyListeners();
-
-    final (ticket, error) = await _ticketService.resellTicket(
-      ticketId: ticketId,
-      resalePrice: resalePrice,
-      customerId: customerId,
-    );
-
-    _isActionLoading = false;
-    if (error != null) {
-      _actionError = error;
-      notifyListeners();
-      return false;
-    }
-
-    // Refresh tickets
-    await loadMyTickets(customerId);
-    await loadResaleTickets();
-    return true;
-  }
-
-  Future<bool> purchaseResaleTicket({
+  Future<bool> refundTicket({
     required int ticketId,
     required int customerId,
   }) async {
@@ -99,7 +57,7 @@ class TicketProvider with ChangeNotifier {
     _actionError = null;
     notifyListeners();
 
-    final (ticket, error) = await _ticketService.purchaseResaleTicket(
+    final (ticket, error) = await _ticketService.refundTicket(
       ticketId: ticketId,
       customerId: customerId,
     );
@@ -111,9 +69,12 @@ class TicketProvider with ChangeNotifier {
       return false;
     }
 
-    // Refresh tickets
-    await loadMyTickets(customerId);
-    await loadResaleTickets();
+    // Update the ticket in the local list immediately
+    if (ticket != null) {
+      final idx = _myTickets.indexWhere((t) => t.id == ticket.id);
+      if (idx != -1) _myTickets[idx] = ticket;
+    }
+    notifyListeners();
     return true;
   }
 }

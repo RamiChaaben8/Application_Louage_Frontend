@@ -4,7 +4,6 @@ import '../../providers/auth_provider.dart';
 import '../auth/login_screen.dart';
 import '../trips/trip_search_screen.dart';
 import '../tickets/my_tickets_screen.dart';
-import '../market/resale_market_screen.dart';
 
 class MainNavigationScreen extends StatefulWidget {
   const MainNavigationScreen({super.key});
@@ -19,13 +18,11 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
   final List<Widget> _screens = const [
     TripSearchScreen(),
     MyTicketsScreen(),
-    ResaleMarketScreen(),
   ];
 
   final List<String> _titles = const [
     'Find Trips',
     'My Tickets',
-    'Resale Market',
   ];
 
   @override
@@ -68,7 +65,9 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
                     ),
                     ElevatedButton(
                       onPressed: () => Navigator.pop(ctx, true),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red,
+                          foregroundColor: Colors.white),
                       child: const Text('Logout'),
                     ),
                   ],
@@ -93,11 +92,7 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
       ),
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
-        onDestinationSelected: (index) {
-          setState(() {
-            _currentIndex = index;
-          });
-        },
+        onDestinationSelected: (index) => setState(() => _currentIndex = index),
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.search),
@@ -108,11 +103,6 @@ class _MainNavigationScreenState extends State<MainNavigationScreen> {
             icon: Icon(Icons.confirmation_number_outlined),
             selectedIcon: Icon(Icons.confirmation_number, color: Colors.blue),
             label: 'My Tickets',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.storefront_outlined),
-            selectedIcon: Icon(Icons.storefront, color: Colors.blue),
-            label: 'Resale Market',
           ),
         ],
       ),

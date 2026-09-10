@@ -3,7 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 
 class ApiConstants {
   // Current PC local network IP on Wi-Fi (for physical Android/iOS devices)
-  static const String localIp = '192.168.1.186';
+  static const String localIp = '192.168.1.11';
   static const String port = '5113';
 
   // Automatically select the proper host depending on whether app is running on Desktop/Web or Mobile
@@ -38,6 +38,7 @@ class ApiConstants {
   static String get adminPendingDriversEndpoint => '$adminBaseEndpoint/drivers/pending';
   static String adminApproveDriverEndpoint(int id) => '$adminBaseEndpoint/drivers/$id/approve';
   static String adminDeclineDriverEndpoint(int id) => '$adminBaseEndpoint/drivers/$id/decline';
+  static String get adminCreateDriverEndpoint => '$adminBaseEndpoint/drivers';
   static String adminDeleteUserEndpoint(int id) => '$adminBaseEndpoint/users/$id';
   static String driverStatusEndpoint(int id) => '$baseUrl/Auth/driver-status/$id';
   static String driverCurrentStationEndpoint(int id) => '$baseUrl/Auth/driver/$id/current-station';

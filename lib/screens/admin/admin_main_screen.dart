@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/admin_provider.dart';
 import '../../providers/auth_provider.dart';
+import '../../widgets/station_picker.dart';
+import '../../core/utils/price_utils.dart';
 import '../auth/login_screen.dart';
 import '../../data/models/admin_user_model.dart';
 import '../../data/models/station_model.dart';
@@ -22,6 +24,9 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
   bool _showTripHistory = false;
   int? _filterStartStationId;
   int? _filterEndStationId;
+  String? _filterStationCity;   // stations tab city filter
+  String? _filterStartCity;     // trips tab start city
+  String? _filterEndCity;       // trips tab end city
 
   @override
   void initState() {
@@ -84,36 +89,6 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       ),
       body: Consumer<AdminProvider>(
         builder: (context, adminProvider, child) {
-          if (adminProvider.isLoading) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (adminProvider.error != null) {
-            return Center(
-              child: Padding(
-                padding: const EdgeInsets.all(24.0),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Icon(Icons.error_outline, size: 48, color: Colors.red),
-                    const SizedBox(height: 12),
-                    Text(
-                      adminProvider.error!,
-                      style: const TextStyle(color: Colors.red, fontSize: 16),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _loadData,
-                      icon: const Icon(Icons.refresh),
-                      label: const Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
           switch (_currentIndex) {
             case 0:
               return _buildUsersTab(adminProvider);
@@ -163,10 +138,12 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     switch (_currentIndex) {
       case 0:
         return FloatingActionButton.extended(
-          onPressed: _showCreateAdminDialog,
+          onPressed: _showAddUserSheet,
           icon: const Icon(Icons.person_add),
-          label: const Text('New Admin'),
+          label: const Text('Add User'),
         );
+      case 1:
+        return null;
       case 2:
         return FloatingActionButton.extended(
           onPressed: _showCreateStationDialog,
@@ -297,6 +274,61 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     );
   }
 
+  void _showAddUserSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const Text(
+                'Add User',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 20),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Colors.purple,
+                  child: Icon(Icons.admin_panel_settings, color: Colors.white),
+                ),
+                title: const Text('Admin',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Full dashboard access'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _showCreateAdminDialog();
+                },
+              ),
+              const Divider(),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: Colors.green,
+                  child: Icon(Icons.directions_car, color: Colors.white),
+                ),
+                title: const Text('Driver',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                subtitle: const Text('Pre-approved, no verification needed'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.of(ctx).pop();
+                  _showCreateDriverDialog();
+                },
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   void _showCreateAdminDialog() {
     final fnCtrl = TextEditingController();
     final lnCtrl = TextEditingController();
@@ -402,6 +434,34 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
 
   // 2. PENDING DRIVERS TAB
   Widget _buildPendingDriversTab(AdminProvider adminProvider) {
+    if (adminProvider.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    if (adminProvider.error != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Icon(Icons.error_outline, size: 48, color: Colors.red),
+              const SizedBox(height: 12),
+              Text(adminProvider.error!,
+                  style: const TextStyle(color: Colors.red, fontSize: 16),
+                  textAlign: TextAlign.center),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: _loadData,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Retry'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     final drivers = adminProvider.pendingDrivers;
 
     if (drivers.isEmpty) {
@@ -602,89 +662,310 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     }
   }
 
+  void _showCreateDriverDialog() async {
+    final adminProvider = context.read<AdminProvider>();
+    if (adminProvider.stations.isEmpty) {
+      await adminProvider.fetchStations();
+    }
+    if (!mounted) return;
+
+    final allStations = adminProvider.stations;
+
+    final fnCtrl = TextEditingController();
+    final lnCtrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final passCtrl = TextEditingController();
+    final phoneCtrl = TextEditingController();
+    final licenseCtrl = TextEditingController();
+    final plateCtrl = TextEditingController();
+    final capacityCtrl = TextEditingController(text: '7');
+    final formKey = GlobalKey<FormState>();
+
+    List<int> selectedStationIds = [];
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) {
+          return AlertDialog(
+            title: Row(
+              children: [
+                const Icon(Icons.person_add_alt_1, color: Colors.green),
+                const SizedBox(width: 8),
+                const Text('Add Pre-Approved Driver'),
+              ],
+            ),
+            content: SingleChildScrollView(
+              child: Form(
+                key: formKey,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // ── Personal info ──────────────────────────
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: fnCtrl,
+                            decoration: const InputDecoration(labelText: 'First Name'),
+                            validator: (v) => v!.isEmpty ? 'Required' : null,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: lnCtrl,
+                            decoration: const InputDecoration(labelText: 'Last Name'),
+                            validator: (v) => v!.isEmpty ? 'Required' : null,
+                          ),
+                        ),
+                      ],
+                    ),
+                    TextFormField(
+                      controller: emailCtrl,
+                      keyboardType: TextInputType.emailAddress,
+                      decoration: const InputDecoration(labelText: 'Email'),
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                    TextFormField(
+                      controller: passCtrl,
+                      obscureText: true,
+                      decoration: const InputDecoration(labelText: 'Password'),
+                      validator: (v) => (v == null || v.length < 6) ? 'Min 6 characters' : null,
+                    ),
+                    TextFormField(
+                      controller: phoneCtrl,
+                      keyboardType: TextInputType.phone,
+                      decoration: const InputDecoration(labelText: 'Phone Number'),
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                    // ── Driver / vehicle info ──────────────────
+                    const Divider(height: 24),
+                    TextFormField(
+                      controller: licenseCtrl,
+                      decoration: const InputDecoration(labelText: 'License Number'),
+                      validator: (v) => v!.isEmpty ? 'Required' : null,
+                    ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: plateCtrl,
+                            textCapitalization: TextCapitalization.characters,
+                            decoration: const InputDecoration(labelText: 'Plate'),
+                            validator: (v) => v!.isEmpty ? 'Required' : null,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: capacityCtrl,
+                            keyboardType: TextInputType.number,
+                            decoration: const InputDecoration(labelText: 'Capacity'),
+                            validator: (v) {
+                              final n = int.tryParse(v ?? '');
+                              return (n == null || n < 2) ? 'Min 2' : null;
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    // ── Stations (multi-city picker) ───────────
+                    const Divider(height: 24),
+                    const Text('Stations (min 2 from any city):',
+                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+                    const SizedBox(height: 8),
+                    StationPicker(
+                      stations: allStations,
+                      selectedIds: selectedStationIds,
+                      onChanged: () => setModalState(() {}),
+                    ),
+                    if (selectedStationIds.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '${selectedStationIds.length} station(s) selected',
+                          style: TextStyle(fontSize: 12, color: Colors.green.shade700),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.check_circle_outline),
+                label: const Text('Create & Approve'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.green,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () async {
+                  if (!formKey.currentState!.validate()) return;
+                  if (selectedStationIds.length < 2) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Please select at least 2 stations.')),
+                    );
+                    return;
+                  }
+                  Navigator.of(ctx).pop();
+                  final messenger = ScaffoldMessenger.of(context);
+                  final adminProvider = context.read<AdminProvider>();
+                  final success = await adminProvider.createDriver(
+                        token: _token,
+                        firstName: fnCtrl.text.trim(),
+                        lastName: lnCtrl.text.trim(),
+                        email: emailCtrl.text.trim(),
+                        password: passCtrl.text.trim(),
+                        phoneNum: int.tryParse(phoneCtrl.text.trim()) ?? 0,
+                        licenseNumber: licenseCtrl.text.trim(),
+                        plate: plateCtrl.text.trim(),
+                        capacity: int.tryParse(capacityCtrl.text.trim()) ?? 7,
+                        stationIds: selectedStationIds,
+                      );
+                  if (mounted) {
+                    messenger.showSnackBar(SnackBar(
+                      content: Text(success
+                          ? 'Driver created and pre-approved!'
+                          : (adminProvider.error ?? 'Failed to create driver')),
+                      backgroundColor: success ? Colors.green : Colors.red,
+                    ));
+                  }
+                },
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
   // 3. STATIONS TAB
   Widget _buildStationsTab(AdminProvider adminProvider) {
-    final stations = adminProvider.stations;
+    final allStations = adminProvider.stations;
 
-    if (stations.isEmpty) {
-      return const Center(child: Text('No stations configured yet.'));
-    }
+    // Derive sorted city list from loaded stations
+    final cities = allStations.map((s) => s.city).toSet().toList()..sort();
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: stations.length,
-      itemBuilder: (context, index) {
-        final station = stations[index];
-        return Card(
-          elevation: 1,
-          margin: const EdgeInsets.only(bottom: 8),
-          child: ListTile(
-            leading: const CircleAvatar(
-              backgroundColor: Colors.blueAccent,
-              child: Icon(Icons.location_city, color: Colors.white),
+    final stations = _filterStationCity == null
+        ? allStations
+        : allStations.where((s) => s.city == _filterStationCity).toList();
+
+    return Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+          child: DropdownButtonFormField<String>(
+            decoration: InputDecoration(
+              labelText: 'Filter by City',
+              prefixIcon: const Icon(Icons.location_city),
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            title: Text(station.name, style: const TextStyle(fontWeight: FontWeight.bold)),
-            subtitle: Text('City: ${station.city}'),
-            trailing: IconButton(
-              icon: const Icon(Icons.delete_outline, color: Colors.red),
-              onPressed: () => _confirmDeleteStation(station),
+            initialValue: _filterStationCity,
+            items: [
+              const DropdownMenuItem<String>(value: null, child: Text('All Cities')),
+              ...cities.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+            ],
+            onChanged: (v) => setState(() => _filterStationCity = v),
+          ),
+        ),
+        if (stations.isEmpty)
+          const Expanded(child: Center(child: Text('No stations for selected city.')))
+        else
+          Expanded(
+            child: ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: stations.length,
+              itemBuilder: (context, index) {
+                final station = stations[index];
+                return Card(
+                  elevation: 1,
+                  margin: const EdgeInsets.only(bottom: 8),
+                  child: ListTile(
+                    leading: const CircleAvatar(
+                      backgroundColor: Colors.blueAccent,
+                      child: Icon(Icons.location_city, color: Colors.white),
+                    ),
+                    title: Text(station.name, style: const TextStyle(fontWeight: FontWeight.bold)),
+                    subtitle: Text('City: ${station.city}'),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.delete_outline, color: Colors.red),
+                      onPressed: () => _confirmDeleteStation(station),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
-        );
-      },
+      ],
     );
   }
 
   void _showCreateStationDialog() {
     final nameCtrl = TextEditingController();
-    final cityCtrl = TextEditingController();
+    String? selectedCity;
     final formKey = GlobalKey<FormState>();
+
+    final allStations = context.read<AdminProvider>().stations;
+    final cities = allStations.map((s) => s.city).toSet().toList()..sort();
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Add Station'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextFormField(
-                controller: nameCtrl,
-                decoration: const InputDecoration(labelText: 'Station Name (e.g. Bab Alioua)'),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-              TextFormField(
-                controller: cityCtrl,
-                decoration: const InputDecoration(labelText: 'City (e.g. Tunis)'),
-                validator: (v) => v!.isEmpty ? 'Required' : null,
-              ),
-            ],
+      builder: (ctx) => StatefulBuilder(
+        builder: (context, setModalState) => AlertDialog(
+          title: const Text('Add Station'),
+          content: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                DropdownButtonFormField<String>(
+                  decoration: const InputDecoration(labelText: 'City'),
+                  initialValue: selectedCity,
+                  items: cities
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
+                      .toList(),
+                  onChanged: (v) => setModalState(() => selectedCity = v),
+                  validator: (v) => v == null ? 'Please select a city' : null,
+                ),
+                TextFormField(
+                  controller: nameCtrl,
+                  decoration: const InputDecoration(labelText: 'Station Name (e.g. Bab Alioua)'),
+                  validator: (v) => v!.isEmpty ? 'Required' : null,
+                ),
+              ],
+            ),
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (formKey.currentState!.validate()) {
-                Navigator.of(ctx).pop();
-                final messenger = ScaffoldMessenger.of(context);
-                final success = await context.read<AdminProvider>().createStation(
-                      token: _token,
-                      name: nameCtrl.text.trim(),
-                      city: cityCtrl.text.trim(),
-                    );
-                if (success && mounted) {
-                  messenger.showSnackBar(const SnackBar(content: Text('Station added!')));
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (formKey.currentState!.validate()) {
+                  Navigator.of(ctx).pop();
+                  final messenger = ScaffoldMessenger.of(context);
+                  final success = await context.read<AdminProvider>().createStation(
+                        token: _token,
+                        name: nameCtrl.text.trim(),
+                        city: selectedCity!,
+                      );
+                  if (success && mounted) {
+                    messenger.showSnackBar(const SnackBar(content: Text('Station added!')));
+                  }
                 }
-              }
-            },
-            child: const Text('Add'),
-          ),
-        ],
+              },
+              child: const Text('Add'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -721,47 +1002,112 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
     if (!_showTripHistory) {
       trips = trips.where((t) => t.status == TripStatus.pending).toList();
     }
-    
+
     if (_filterStartStationId != null) {
       trips = trips.where((t) => t.startStationId == _filterStartStationId).toList();
     }
-    
+
     if (_filterEndStationId != null) {
       trips = trips.where((t) => t.endStationId == _filterEndStationId).toList();
     }
 
     trips.sort((a, b) => a.departureTime.compareTo(b.departureTime));
-    
-    final stations = adminProvider.stations;
+
+    final allStations = adminProvider.stations;
+    final cities = allStations.map((s) => s.city).toSet().toList()..sort();
+
+    List<Station> startStations = _filterStartCity == null
+        ? allStations
+        : allStations.where((s) => s.city == _filterStartCity).toList();
+
+    List<Station> endStations = _filterEndCity == null
+        ? allStations
+        : allStations.where((s) => s.city == _filterEndCity).toList();
 
     return Column(
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
-          child: Row(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Column(
             children: [
-              Expanded(
-                child: DropdownButtonFormField<int>(
-                  decoration: const InputDecoration(labelText: 'Start Station', isDense: true),
-                  value: _filterStartStationId,
-                  items: [
-                    const DropdownMenuItem<int>(value: null, child: Text('All')),
-                    ...stations.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))),
-                  ],
-                  onChanged: (val) => setState(() => _filterStartStationId = val),
-                ),
+              // ── Start city → station ──────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: 'From City',
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      initialValue: _filterStartCity,
+                      items: [
+                        const DropdownMenuItem<String>(value: null, child: Text('Any')),
+                        ...cities.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                      ],
+                      onChanged: (v) => setState(() {
+                        _filterStartCity = v;
+                        _filterStartStationId = null;
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      decoration: InputDecoration(
+                        labelText: 'From Station',
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      initialValue: _filterStartStationId,
+                      items: [
+                        const DropdownMenuItem<int>(value: null, child: Text('Any')),
+                        ...startStations.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))),
+                      ],
+                      onChanged: (v) => setState(() => _filterStartStationId = v),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 16),
-              Expanded(
-                child: DropdownButtonFormField<int>(
-                  decoration: const InputDecoration(labelText: 'End Station', isDense: true),
-                  value: _filterEndStationId,
-                  items: [
-                    const DropdownMenuItem<int>(value: null, child: Text('All')),
-                    ...stations.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))),
-                  ],
-                  onChanged: (val) => setState(() => _filterEndStationId = val),
-                ),
+              const SizedBox(height: 8),
+              // ── End city → station ────────────────────────────────
+              Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      decoration: InputDecoration(
+                        labelText: 'To City',
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      initialValue: _filterEndCity,
+                      items: [
+                        const DropdownMenuItem<String>(value: null, child: Text('Any')),
+                        ...cities.map((c) => DropdownMenuItem(value: c, child: Text(c))),
+                      ],
+                      onChanged: (v) => setState(() {
+                        _filterEndCity = v;
+                        _filterEndStationId = null;
+                      }),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: DropdownButtonFormField<int>(
+                      decoration: InputDecoration(
+                        labelText: 'To Station',
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                      initialValue: _filterEndStationId,
+                      items: [
+                        const DropdownMenuItem<int>(value: null, child: Text('Any')),
+                        ...endStations.map((s) => DropdownMenuItem(value: s.id, child: Text(s.name))),
+                      ],
+                      onChanged: (v) => setState(() => _filterEndStationId = v),
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -824,7 +1170,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade200)),
-                                  child: const Text('Price: 50 TND', style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
+                                  child: Text(
+                                    'Price: ${formatLouagePrice(trip.startStation?.city ?? '', trip.endStation?.city ?? '', fromStation: trip.startStation?.name ?? '', toStation: trip.endStation?.name ?? '')}',
+                                    style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold),
+                                  ),
                                 ),
                                 const SizedBox(width: 8),
                                 Container(
@@ -977,7 +1326,10 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(color: Colors.indigo.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
-                child: const Text('Price: 50 TND', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo)),
+                child: Text(
+                  'Price: ${formatLouagePrice(trip.startStation?.city ?? '', trip.endStation?.city ?? '', fromStation: trip.startStation?.name ?? '', toStation: trip.endStation?.name ?? '')}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo),
+                ),
               ),
             ],
           ),
@@ -1044,21 +1396,24 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
       return;
     }
 
-    int startId = stations.first.id;
-    int endId = stations[1].id;
+    final cities = stations.map((s) => s.city).toSet().toList()..sort();
+
+    String? startCity;
+    String? endCity;
+    int? startId;
+    int? endId;
     DateTime selectedDate = DateTime.now().add(const Duration(hours: 2));
     int? selectedDriverId;
     List<AdminUser> availableDrivers = [];
     bool loadingDrivers = false;
 
-    // Helper to load available drivers for a given station
+    List<Station> stationsFor(String? city) =>
+        city == null ? stations : stations.where((s) => s.city == city).toList();
+
     Future<List<AdminUser>> loadDriversForStation(int stationId) async {
       await adminProvider.fetchAvailableDrivers(_token, stationId: stationId);
       return adminProvider.availableDrivers;
     }
-
-    // Load initial drivers for the default start station
-    availableDrivers = await loadDriversForStation(startId);
 
     if (!mounted) return;
     showDialog(
@@ -1071,52 +1426,93 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Text('Start Station:', style: TextStyle(fontWeight: FontWeight.bold)),
-                DropdownButton<int>(
+                // ── Start: city then station ──────────────────────
+                const Text('From City:', style: TextStyle(fontWeight: FontWeight.bold)),
+                DropdownButton<String>(
                   isExpanded: true,
-                  value: startId,
-                  items: stations
-                      .map((s) => DropdownMenuItem(
-                            value: s.id,
-                            child: Text('${s.name} (${s.city})'),
-                          ))
+                  value: startCity,
+                  hint: const Text('Select city…'),
+                  items: cities
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
-                  onChanged: (v) async {
-                    if (v != null) {
-                      setModalState(() {
-                        startId = v;
-                        selectedDriverId = null;
-                        loadingDrivers = true;
-                      });
-                      final drivers = await loadDriversForStation(v);
-                      setModalState(() {
-                        availableDrivers = drivers;
-                        loadingDrivers = false;
-                      });
-                    }
-                  },
+                  onChanged: (v) => setModalState(() {
+                    startCity = v;
+                    startId = null;
+                    selectedDriverId = null;
+                    availableDrivers = [];
+                  }),
                 ),
+                if (startCity != null) ...[
+                  const SizedBox(height: 8),
+                  const Text('From Station:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  DropdownButton<int>(
+                    isExpanded: true,
+                    value: startId,
+                    hint: const Text('Select station…'),
+                    items: stationsFor(startCity)
+                        .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
+                        .toList(),
+                    onChanged: (v) async {
+                      if (v != null) {
+                        setModalState(() {
+                          startId = v;
+                          selectedDriverId = null;
+                          loadingDrivers = true;
+                        });
+                        final drivers = await loadDriversForStation(v);
+                        setModalState(() {
+                          availableDrivers = drivers;
+                          loadingDrivers = false;
+                        });
+                      }
+                    },
+                  ),
+                ],
                 const SizedBox(height: 12),
-                const Text('End Station:', style: TextStyle(fontWeight: FontWeight.bold)),
-                DropdownButton<int>(
+                // ── End: city then station ────────────────────────
+                const Text('To City:', style: TextStyle(fontWeight: FontWeight.bold)),
+                DropdownButton<String>(
                   isExpanded: true,
-                  value: endId,
-                  items: stations
-                      .map((s) => DropdownMenuItem(
-                            value: s.id,
-                            child: Text('${s.name} (${s.city})'),
-                          ))
+                  value: endCity,
+                  hint: const Text('Select city…'),
+                  items: cities
+                      .map((c) => DropdownMenuItem(value: c, child: Text(c)))
                       .toList(),
-                  onChanged: (v) {
-                    if (v != null) setModalState(() => endId = v);
-                  },
+                  onChanged: (v) => setModalState(() {
+                    endCity = v;
+                    endId = null;
+                  }),
                 ),
+                if (endCity != null) ...[
+                  const SizedBox(height: 8),
+                  const Text('To Station:', style: TextStyle(fontWeight: FontWeight.bold)),
+                  DropdownButton<int>(
+                    isExpanded: true,
+                    value: endId,
+                    hint: const Text('Select station…'),
+                    items: stationsFor(endCity)
+                        .map((s) => DropdownMenuItem(value: s.id, child: Text(s.name)))
+                        .toList(),
+                    onChanged: (v) {
+                      if (v != null) setModalState(() => endId = v);
+                    },
+                  ),
+                ],
                 const SizedBox(height: 12),
+                // ── Driver ────────────────────────────────────────
                 const Text('Driver (optional):', style: TextStyle(fontWeight: FontWeight.bold)),
                 if (loadingDrivers)
                   const Padding(
                     padding: EdgeInsets.symmetric(vertical: 8),
                     child: Center(child: CircularProgressIndicator()),
+                  )
+                else if (startId == null)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Text(
+                      'Select a start station first.',
+                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                    ),
                   )
                 else if (availableDrivers.isEmpty)
                   Padding(
@@ -1130,7 +1526,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                   DropdownButton<int?>(
                     isExpanded: true,
                     value: selectedDriverId,
-                    hint: const Text('Select a driver...'),
+                    hint: const Text('Select a driver…'),
                     items: [
                       const DropdownMenuItem<int?>(value: null, child: Text('— None —')),
                       ...availableDrivers.map((d) => DropdownMenuItem<int?>(
@@ -1143,6 +1539,7 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                     onChanged: (v) => setModalState(() => selectedDriverId = v),
                   ),
                 const SizedBox(height: 12),
+                // ── Date / time ───────────────────────────────────
                 ListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Departure Time:'),
@@ -1185,6 +1582,12 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
             TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
+                if (startId == null || endId == null) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Please select both start and end stations.')),
+                  );
+                  return;
+                }
                 if (startId == endId) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(content: Text('Start and End station cannot be the same.')),
@@ -1195,8 +1598,8 @@ class _AdminMainScreenState extends State<AdminMainScreen> {
                 final messenger = ScaffoldMessenger.of(context);
                 final success = await context.read<AdminProvider>().createTrip(
                       token: _token,
-                      startStationId: startId,
-                      endStationId: endId,
+                      startStationId: startId!,
+                      endStationId: endId!,
                       departureTime: selectedDate,
                       driverId: selectedDriverId,
                     );

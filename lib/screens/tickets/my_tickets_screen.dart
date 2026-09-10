@@ -16,9 +16,7 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _loadTickets();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadTickets());
   }
 
   void _loadTickets() {
@@ -30,48 +28,25 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
     }
   }
 
-  void _showResellDialog(Ticket ticket) {
-    final priceController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
+  void _confirmRefund(Ticket ticket) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Resell Ticket'),
-        content: Form(
-          key: formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Original Price: ${ticket.originalPrice.toStringAsFixed(2)} TND',
-                  style: const TextStyle(fontWeight: FontWeight.bold)),
-              const SizedBox(height: 8),
-              const Text(
-                'Note: According to Louage rules, the resale price must be lower than the original price.',
-                style: TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: priceController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: const InputDecoration(
-                  labelText: 'Resale Price (TND)',
-                  prefixIcon: Icon(Icons.sell),
-                  border: OutlineInputBorder(),
-                ),
-                validator: (val) {
-                  if (val == null || val.isEmpty) return 'Enter a price';
-                  final p = double.tryParse(val);
-                  if (p == null || p <= 0) return 'Enter a valid positive price';
-                  if (p >= ticket.originalPrice) {
-                    return 'Must be lower than ${ticket.originalPrice.toStringAsFixed(2)} TND';
-                  }
-                  return null;
-                },
-              ),
-            ],
-          ),
+        title: const Text('Refund Ticket'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Ticket #${ticket.id}',
+                style: const TextStyle(fontWeight: FontWeight.bold)),
+            const SizedBox(height: 8),
+            Text('Price paid: ${ticket.price.toStringAsFixed(2)} TND'),
+            const SizedBox(height: 12),
+            const Text(
+              'Are you sure you want to refund this ticket? This cannot be undone.',
+              style: TextStyle(fontSize: 13, color: Colors.grey),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -79,52 +54,45 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
             child: const Text('Cancel'),
           ),
           ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
             onPressed: () async {
-              if (formKey.currentState!.validate()) {
-                final authProvider = Provider.of<AuthProvider>(context, listen: false);
-                final ticketProvider = Provider.of<TicketProvider>(context, listen: false);
-                final customerId = authProvider.currentUser?.userId ?? 0;
-                final resalePrice = double.parse(priceController.text.trim());
+              final authProvider =
+                  Provider.of<AuthProvider>(context, listen: false);
+              final ticketProvider =
+                  Provider.of<TicketProvider>(context, listen: false);
+              final customerId = authProvider.currentUser?.userId ?? 0;
 
-                Navigator.pop(ctx);
+              Navigator.pop(ctx);
 
-                final success = await ticketProvider.resellTicket(
-                  ticketId: ticket.id,
-                  resalePrice: resalePrice,
-                  customerId: customerId,
-                );
+              final success = await ticketProvider.refundTicket(
+                ticketId: ticket.id,
+                customerId: customerId,
+              );
 
-                if (!mounted) return;
+              if (!mounted) return;
 
-                if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Ticket listed for resale successfully!'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
-                } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(ticketProvider.actionError ?? 'Failed to list ticket.'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
-                }
-              }
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(success
+                    ? 'Ticket refunded successfully.'
+                    : (ticketProvider.actionError ?? 'Refund failed.')),
+                backgroundColor: success ? Colors.green : Colors.red,
+              ));
             },
-            child: const Text('List for Resale'),
+            child: const Text('Confirm Refund'),
           ),
         ],
       ),
     );
   }
 
-  Color _getStatusColor(TicketStatus status) {
+  Color _statusColor(TicketStatus status) {
     switch (status) {
       case TicketStatus.active:
         return Colors.green;
-      case TicketStatus.resale:
+      case TicketStatus.refunded:
         return Colors.orange;
       case TicketStatus.used:
         return Colors.grey;
@@ -147,11 +115,13 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.confirmation_number_outlined, size: 70, color: Colors.grey.shade400),
+                        Icon(Icons.confirmation_number_outlined,
+                            size: 70, color: Colors.grey.shade400),
                         const SizedBox(height: 16),
                         Text(
-                          'You do not have any tickets yet.',
-                          style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+                          'You have no tickets yet.',
+                          style: TextStyle(
+                              fontSize: 16, color: Colors.grey.shade600),
                         ),
                       ],
                     ),
@@ -161,36 +131,39 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
                     itemCount: ticketProvider.myTickets.length,
                     itemBuilder: (context, index) {
                       final ticket = ticketProvider.myTickets[index];
+                      final color = _statusColor(ticket.status);
                       return Card(
                         margin: const EdgeInsets.only(bottom: 12),
                         elevation: 2,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
                         child: Padding(
                           padding: const EdgeInsets.all(16.0),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    'Ticket #${ticket.id}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                  ),
+                                  Text('Ticket #${ticket.id}',
+                                      style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16)),
                                   Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 10, vertical: 4),
                                     decoration: BoxDecoration(
-                                      color: _getStatusColor(ticket.status).withOpacity(0.15),
+                                      color: color.withValues(alpha: 0.15),
                                       borderRadius: BorderRadius.circular(12),
-                                      border: Border.all(color: _getStatusColor(ticket.status)),
+                                      border: Border.all(color: color),
                                     ),
                                     child: Text(
                                       ticket.status.name.toUpperCase(),
                                       style: TextStyle(
-                                        color: _getStatusColor(ticket.status),
-                                        fontWeight: FontWeight.bold,
-                                        fontSize: 12,
-                                      ),
+                                          color: color,
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 12),
                                     ),
                                   ),
                                 ],
@@ -198,32 +171,39 @@ class _MyTicketsScreenState extends State<MyTicketsScreen> {
                               const Divider(height: 20),
                               Row(
                                 children: [
-                                  const Icon(Icons.calendar_today, size: 16, color: Colors.grey),
+                                  const Icon(Icons.calendar_today,
+                                      size: 16, color: Colors.grey),
                                   const SizedBox(width: 6),
                                   Text('Date: ${ticket.date.isNotEmpty ? ticket.date : "N/A"}'),
                                   const Spacer(),
-                                  const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                                  const Icon(Icons.access_time,
+                                      size: 16, color: Colors.grey),
                                   const SizedBox(width: 6),
                                   Text('Time: ${ticket.time.isNotEmpty ? ticket.time : "N/A"}'),
                                 ],
                               ),
                               const SizedBox(height: 8),
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
                                     'Price: ${ticket.price.toStringAsFixed(2)} TND',
-                                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue),
+                                    style: const TextStyle(
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                        color: Colors.blue),
                                   ),
                                   if (ticket.status == TicketStatus.active)
                                     OutlinedButton.icon(
-                                      icon: const Icon(Icons.sell, size: 16),
-                                      label: const Text('Resell'),
+                                      icon: const Icon(Icons.undo, size: 16),
+                                      label: const Text('Refund'),
                                       style: OutlinedButton.styleFrom(
-                                        foregroundColor: Colors.orange.shade800,
-                                        side: BorderSide(color: Colors.orange.shade800),
+                                        foregroundColor: Colors.red.shade700,
+                                        side: BorderSide(
+                                            color: Colors.red.shade700),
                                       ),
-                                      onPressed: () => _showResellDialog(ticket),
+                                      onPressed: () => _confirmRefund(ticket),
                                     ),
                                 ],
                               ),

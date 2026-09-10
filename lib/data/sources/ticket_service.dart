@@ -41,64 +41,18 @@ class TicketService {
       }
       return [];
     } catch (e) {
-      print('[TicketService] getMyTickets error: $e');
       return [];
     }
   }
 
-  // List a ticket for resale
-  Future<(Ticket?, String?)> resellTicket({
-    required int ticketId,
-    required double resalePrice,
-    required int customerId,
-  }) async {
-    try {
-      final url = '${ApiConstants.ticketsEndpoint}/resell?customerId=$customerId';
-      final response = await http.post(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'ticketId': ticketId,
-          'resalePrice': resalePrice,
-        }),
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        return (Ticket.fromJson(jsonDecode(response.body)), null);
-      }
-      return (null, _extractError(response.body, response.statusCode));
-    } catch (e) {
-      return (null, 'Error listing ticket for resale: $e');
-    }
-  }
-
-  // Browse all resale tickets
-  Future<List<Ticket>> getResaleTickets() async {
-    try {
-      final url = '${ApiConstants.ticketsEndpoint}/resale';
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'Content-Type': 'application/json'},
-      ).timeout(const Duration(seconds: 10));
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        return data.map((json) => Ticket.fromJson(json)).toList();
-      }
-      return [];
-    } catch (e) {
-      print('[TicketService] getResaleTickets error: $e');
-      return [];
-    }
-  }
-
-  // Buy a ticket from the resale market
-  Future<(Ticket?, String?)> purchaseResaleTicket({
+  // Request a refund on an active ticket
+  Future<(Ticket?, String?)> refundTicket({
     required int ticketId,
     required int customerId,
   }) async {
     try {
-      final url = '${ApiConstants.ticketsEndpoint}/$ticketId/purchase-resale?customerId=$customerId';
+      final url =
+          '${ApiConstants.ticketsEndpoint}/$ticketId/refund?customerId=$customerId';
       final response = await http.post(
         Uri.parse(url),
         headers: {'Content-Type': 'application/json'},
@@ -109,7 +63,7 @@ class TicketService {
       }
       return (null, _extractError(response.body, response.statusCode));
     } catch (e) {
-      return (null, 'Error buying resale ticket: $e');
+      return (null, 'Error requesting refund: $e');
     }
   }
 

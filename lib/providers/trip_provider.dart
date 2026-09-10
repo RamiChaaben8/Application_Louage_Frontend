@@ -18,6 +18,9 @@ class TripProvider with ChangeNotifier {
   DateTime? _selectedDate;
   int? _driverId;
 
+  String? _selectedStartCity;
+  String? _selectedEndCity;
+
   List<Station> get stations => _stations;
   List<Trip> get trips => _trips;
   bool get isLoadingStations => _isLoadingStations;
@@ -28,6 +31,42 @@ class TripProvider with ChangeNotifier {
   Station? get selectedEndStation => _selectedEndStation;
   DateTime? get selectedDate => _selectedDate;
   int? get driverId => _driverId;
+  String? get selectedStartCity => _selectedStartCity;
+  String? get selectedEndCity => _selectedEndCity;
+
+  /// Sorted, deduplicated list of city names from loaded stations.
+  List<String> get cities {
+    final seen = <String>{};
+    final result = <String>[];
+    for (final s in _stations) {
+      if (seen.add(s.city)) result.add(s.city);
+    }
+    result.sort();
+    return result;
+  }
+
+  /// Stations that belong to [city], or all stations if [city] is null.
+  List<Station> stationsForCity(String? city) {
+    if (city == null) return _stations;
+    return _stations.where((s) => s.city == city).toList();
+  }
+
+  void setStartCity(String? city) {
+    _selectedStartCity = city;
+    // Clear station if it no longer belongs to the new city
+    if (city != null && _selectedStartStation?.city != city) {
+      _selectedStartStation = null;
+    }
+    notifyListeners();
+  }
+
+  void setEndCity(String? city) {
+    _selectedEndCity = city;
+    if (city != null && _selectedEndStation?.city != city) {
+      _selectedEndStation = null;
+    }
+    notifyListeners();
+  }
 
   void setStartStation(Station? station) {
     _selectedStartStation = station;
@@ -47,10 +86,12 @@ class TripProvider with ChangeNotifier {
   void clearFilters() {
     _selectedStartStation = null;
     _selectedEndStation = null;
+    _selectedStartCity = null;
+    _selectedEndCity = null;
     _selectedDate = null;
     _driverId = null;
+    _trips = [];
     notifyListeners();
-    searchTrips();
   }
 
   Future<void> loadStations() async {
@@ -65,10 +106,10 @@ class TripProvider with ChangeNotifier {
 
   Future<void> loadDriverTrips(int driverId) async {
     _driverId = driverId;
-    await searchTrips(driverId: driverId);
+    await searchTrips(driverId: driverId, onlyAvailable: false);
   }
 
-  Future<void> searchTrips({int? driverId}) async {
+  Future<void> searchTrips({int? driverId, bool onlyAvailable = true}) async {
     if (driverId != null) {
       _driverId = driverId;
     }
@@ -81,6 +122,7 @@ class TripProvider with ChangeNotifier {
       endStationId: _selectedEndStation?.id,
       date: _selectedDate,
       driverId: _driverId,
+      onlyAvailable: onlyAvailable,
     );
 
     _isLoadingTrips = false;

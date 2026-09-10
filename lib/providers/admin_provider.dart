@@ -21,6 +21,7 @@ class AdminProvider extends ChangeNotifier {
 
   // ─── Users ──────────────────────────────────────────────────────────
   Future<void> fetchUsers(String token) async {
+    error = null;
     _setLoading(true);
     final (fetchedUsers, fetchError) = await _adminService.getAllUsers(token);
 
@@ -75,6 +76,7 @@ class AdminProvider extends ChangeNotifier {
 
   // ─── Pending Drivers ────────────────────────────────────────────────
   Future<void> fetchPendingDrivers(String token) async {
+    error = null;
     _setLoading(true);
     final (fetchedDrivers, fetchError) = await _adminService.getPendingDrivers(token);
 
@@ -85,6 +87,43 @@ class AdminProvider extends ChangeNotifier {
       error = null;
     }
     _setLoading(false);
+  }
+
+  Future<bool> createDriver({
+    required String token,
+    required String firstName,
+    required String lastName,
+    required String email,
+    required String password,
+    required int phoneNum,
+    required String licenseNumber,
+    required String plate,
+    required int capacity,
+    required List<int> stationIds,
+  }) async {
+    _setLoading(true);
+    final (driver, err) = await _adminService.createDriver(
+      token: token,
+      firstName: firstName,
+      lastName: lastName,
+      email: email,
+      password: password,
+      phoneNum: phoneNum,
+      licenseNumber: licenseNumber,
+      plate: plate,
+      capacity: capacity,
+      stationIds: stationIds,
+    );
+
+    if (err != null) {
+      error = err;
+      _setLoading(false);
+      return false;
+    }
+
+    // Refresh available drivers list so new driver appears immediately
+    await fetchAvailableDrivers(token);
+    return true;
   }
 
   Future<bool> approveDriver(int id, String token) async {
